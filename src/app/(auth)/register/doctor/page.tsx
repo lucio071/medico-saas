@@ -4,25 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getRolePath } from "@/lib/auth/roles";
 
-function buildSlug(name: string, email: string): string {
-  const namePart = name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 30);
-  const emailPart = email
-    .split("@")[0]
-    .slice(0, 10)
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const rand = Math.random().toString(36).slice(2, 6);
-  return `${namePart}-${emailPart}-${rand}`.slice(0, 50);
-}
-
-export default function RegisterPage() {
+export default function RegisterDoctorPage() {
   const router = useRouter();
   const supabase = createClient();
 
@@ -47,11 +31,14 @@ export default function RegisterPage() {
 
     setIsSubmitting(true);
 
-    // 1. Create auth user
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
     });
 
     if (authError || !authData.user) {
@@ -60,30 +47,9 @@ export default function RegisterPage() {
       return;
     }
 
-    const userId = authData.user.id;
-
-    // 2. Create tenant automatically
-    const slug = buildSlug(fullName, email);
-    const { data: tenantData, error: tenantError } = await supabase
-      .from("tenants")
-      .insert({ name: `Consultorio ${fullName}`, slug })
-      .select("id")
-      .single();
-
-    if (tenantError || !tenantData) {
-      setError(
-        `Cuenta creada, pero falló la creación del consultorio. ${tenantError?.message ?? ""}`,
-      );
-      setIsSubmitting(false);
-      return;
-    }
-
-    const tenantId = tenantData.id;
-
-    // 3. Insert users record
     const { error: insertUserError } = await supabase.from("users").insert({
-      id: userId,
-      tenant_id: tenantId,
+      id: authData.user.id,
+      tenant_id: null,
       email,
       full_name: fullName,
       phone,
@@ -92,36 +58,39 @@ export default function RegisterPage() {
     });
 
     if (insertUserError) {
+      console.log("[Supabase users insert] error completo:", insertUserError);
       const parts = [
         insertUserError.message,
         insertUserError.code && `code: ${insertUserError.code}`,
         insertUserError.details && `details: ${insertUserError.details}`,
         insertUserError.hint && `hint: ${insertUserError.hint}`,
       ].filter(Boolean);
+
       setError(
-        `La cuenta se creó, pero falló el registro del perfil. ${parts.join(" · ")}`,
+        `La cuenta se creó en Auth, pero falló el registro del perfil. ${parts.join(" · ")}`,
       );
       setIsSubmitting(false);
       return;
     }
 
-    // 4. Insert doctors record
     const { error: insertDoctorError } = await supabase.from("doctors").insert({
-      tenant_id: tenantId,
-      user_id: userId,
+      tenant_id: null,
+      user_id: authData.user.id,
       specialty,
       license_number: licenseNumber,
     });
 
     if (insertDoctorError) {
+      console.log("[Supabase doctors insert] error completo:", insertDoctorError);
       const parts = [
         insertDoctorError.message,
         insertDoctorError.code && `code: ${insertDoctorError.code}`,
         insertDoctorError.details && `details: ${insertDoctorError.details}`,
         insertDoctorError.hint && `hint: ${insertDoctorError.hint}`,
       ].filter(Boolean);
+
       setError(
-        `La cuenta se creó, pero falló el registro del médico. ${parts.join(" · ")}`,
+        `La cuenta se creó en Auth, pero falló el registro del médico. ${parts.join(" · ")}`,
       );
       setIsSubmitting(false);
       return;
@@ -133,13 +102,9 @@ export default function RegisterPage() {
       return;
     }
 
-    router.replace("/doctor");
+    router.replace(getRolePath("doctor"));
     router.refresh();
   }
-
-  const inputClass =
-    "h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500";
-  const labelClass = "text-sm font-medium text-zinc-700 dark:text-zinc-300";
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-10 dark:bg-zinc-950">
@@ -147,16 +112,19 @@ export default function RegisterPage() {
         <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <div className="mb-8 space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Registro de médico
+              Crear cuenta (Médico)
             </h1>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Crea tu cuenta y consultorio de forma gratuita.
+              Regístrate para acceder al panel médico.
             </p>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <label htmlFor="fullName" className={labelClass}>
+              <label
+                htmlFor="fullName"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 Nombre completo
               </label>
               <input
@@ -165,14 +133,17 @@ export default function RegisterPage() {
                 autoComplete="name"
                 required
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className={inputClass}
-                placeholder="Dra. Ana García"
+                onChange={(event) => setFullName(event.target.value)}
+                className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-0 transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
+                placeholder="Nombre Apellido"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="email" className={labelClass}>
+              <label
+                htmlFor="email"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 Email
               </label>
               <input
@@ -181,14 +152,17 @@ export default function RegisterPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={inputClass}
+                onChange={(event) => setEmail(event.target.value)}
+                className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-0 transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
                 placeholder="tu@email.com"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="phone" className={labelClass}>
+              <label
+                htmlFor="phone"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 Teléfono
               </label>
               <input
@@ -197,14 +171,17 @@ export default function RegisterPage() {
                 autoComplete="tel"
                 required
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={inputClass}
+                onChange={(event) => setPhone(event.target.value)}
+                className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-0 transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
                 placeholder="+54 11 1234 5678"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="specialty" className={labelClass}>
+              <label
+                htmlFor="specialty"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 Especialidad
               </label>
               <input
@@ -213,14 +190,17 @@ export default function RegisterPage() {
                 autoComplete="organization-title"
                 required
                 value={specialty}
-                onChange={(e) => setSpecialty(e.target.value)}
-                className={inputClass}
+                onChange={(event) => setSpecialty(event.target.value)}
+                className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-0 transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
                 placeholder="Ej: Cardiología"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="licenseNumber" className={labelClass}>
+              <label
+                htmlFor="licenseNumber"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 Número de matrícula
               </label>
               <input
@@ -229,14 +209,17 @@ export default function RegisterPage() {
                 autoComplete="off"
                 required
                 value={licenseNumber}
-                onChange={(e) => setLicenseNumber(e.target.value)}
-                className={inputClass}
+                onChange={(event) => setLicenseNumber(event.target.value)}
+                className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-0 transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
                 placeholder="Ej: 123456"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="password" className={labelClass}>
+              <label
+                htmlFor="password"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 Contraseña
               </label>
               <input
@@ -246,14 +229,17 @@ export default function RegisterPage() {
                 required
                 minLength={6}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={inputClass}
+                onChange={(event) => setPassword(event.target.value)}
+                className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-0 transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
                 placeholder="••••••••"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="confirmPassword" className={labelClass}>
+              <label
+                htmlFor="confirmPassword"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 Confirmar contraseña
               </label>
               <input
@@ -263,8 +249,8 @@ export default function RegisterPage() {
                 required
                 minLength={6}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={inputClass}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-0 transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
                 placeholder="••••••••"
               />
             </div>
@@ -280,7 +266,7 @@ export default function RegisterPage() {
               disabled={isSubmitting}
               className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-zinc-900 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
             >
-              {isSubmitting ? "Creando cuenta..." : "Crear cuenta gratis"}
+              {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
             </button>
           </form>
 
@@ -298,3 +284,4 @@ export default function RegisterPage() {
     </main>
   );
 }
+

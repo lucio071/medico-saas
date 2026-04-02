@@ -31,6 +31,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string | null;
         };
+        Relationships: [];
       };
       users: {
         Row: {
@@ -66,11 +67,20 @@ export type Database = {
           created_at?: string;
           updated_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "users_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       doctors: {
         Row: {
           id: string;
-          tenant_id: string;
+          tenant_id: string | null;
           user_id: string;
           specialty: string | null;
           license_number: string | null;
@@ -78,7 +88,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          tenant_id: string;
+          tenant_id?: string | null;
           user_id: string;
           specialty?: string | null;
           license_number?: string | null;
@@ -86,12 +96,21 @@ export type Database = {
         };
         Update: {
           id?: string;
-          tenant_id?: string;
+          tenant_id?: string | null;
           user_id?: string;
           specialty?: string | null;
           license_number?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "doctors_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       doctor_schedules: {
         Row: {
@@ -124,6 +143,7 @@ export type Database = {
           is_available?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       patients: {
         Row: {
@@ -153,6 +173,15 @@ export type Database = {
           emergency_contact?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "patients_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       appointments: {
         Row: {
@@ -188,6 +217,7 @@ export type Database = {
           notes?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       prescriptions: {
         Row: {
@@ -220,6 +250,7 @@ export type Database = {
           medications?: Json;
           created_at?: string;
         };
+        Relationships: [];
       };
       whatsapp_sessions: {
         Row: {
@@ -252,7 +283,12 @@ export type Database = {
           created_at?: string;
           updated_at?: string | null;
         };
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 };
