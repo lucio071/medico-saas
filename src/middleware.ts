@@ -52,7 +52,7 @@ export async function middleware(request: NextRequest) {
     .from("users")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .single<{ role: "admin" | "doctor" | "secretary" | "patient" | null }>();
 
   const rolePath = getRolePath(userRow?.role ?? null);
 
