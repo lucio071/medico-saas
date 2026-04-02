@@ -5,7 +5,7 @@ import { getRolePath } from "@/lib/auth/roles";
 
 const PUBLIC_PATH_PREFIXES = ["/login", "/register"];
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isVerifyRoute = pathname.startsWith("/verify/");
   const isPublicPath =
