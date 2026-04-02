@@ -3,13 +3,18 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 import { getRolePath } from "@/lib/auth/roles";
 
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATH_PREFIXES = ["/login", "/register"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isVerifyRoute = pathname.startsWith("/verify/");
   const isPublicPath =
-    PUBLIC_PATHS.includes(pathname) || isVerifyRoute || pathname === "/";
+    pathname === "/" ||
+    isVerifyRoute ||
+    PUBLIC_PATH_PREFIXES.some(
+      (prefix) =>
+        pathname === prefix || pathname.startsWith(`${prefix}/`),
+    );
 
   const response = NextResponse.next({
     request: {

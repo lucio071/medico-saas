@@ -35,7 +35,7 @@ export default function LoginPage() {
       .from("users")
       .select("role")
       .eq("id", data.user.id)
-      .single();
+      .single<{ role: "admin" | "doctor" | "secretary" | "patient" | null }>();
 
     if (userError) {
       setError("Sesión iniciada, pero no se pudo resolver el rol del usuario.");

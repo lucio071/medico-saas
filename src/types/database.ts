@@ -70,7 +70,7 @@ export type Database = {
       doctors: {
         Row: {
           id: string;
-          tenant_id: string;
+          tenant_id: string | null;
           user_id: string;
           specialty: string | null;
           license_number: string | null;
@@ -78,7 +78,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          tenant_id: string;
+          tenant_id?: string | null;
           user_id: string;
           specialty?: string | null;
           license_number?: string | null;
@@ -86,7 +86,7 @@ export type Database = {
         };
         Update: {
           id?: string;
-          tenant_id?: string;
+          tenant_id?: string | null;
           user_id?: string;
           specialty?: string | null;
           license_number?: string | null;
