@@ -1,28 +1,24 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import type { Database } from "@/types/database";
-import { getRolePath } from "@/lib/auth/roles";
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/register"];
+const PUBLIC_PREFIXES = ["/login", "/register", "/verify", "/_next", "/favicon"];
 
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isVerifyRoute = pathname.startsWith("/verify/");
-  const isPublicPath =
+
+  const isPublic =
     pathname === "/" ||
-    isVerifyRoute ||
-    PUBLIC_PATH_PREFIXES.some(
-      (prefix) =>
-        pathname === prefix || pathname.startsWith(`${prefix}/`),
-    );
+    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`) || pathname.startsWith(`${p}.`));
+
+  if (isPublic) {
+    return NextResponse.next();
+  }
 
   const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   });
 
-  const supabase = createServerClient<Database>(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -39,28 +35,12 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    if (isPublicPath) return response;
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  const { data: userRow } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const rolePath = getRolePath(userRow?.role ?? null);
-
-  if (pathname !== rolePath && !pathname.startsWith(`${rolePath}/`)) {
-    return NextResponse.redirect(new URL(rolePath, request.url));
-  }
-
-  return response;
+  return supabase.auth.getUser().then(({ data: { user } }) => {
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    return response;
+  });
 }
 
 export const config = {
