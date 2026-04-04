@@ -617,6 +617,39 @@ export type Database = {
           },
         ];
       };
+      waitlist: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          patient_id: string;
+          doctor_id: string;
+          requested_date: string;
+          notes: string | null;
+          status: "waiting" | "scheduled" | "cancelled";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          patient_id: string;
+          doctor_id: string;
+          requested_date: string;
+          notes?: string | null;
+          status?: "waiting" | "scheduled" | "cancelled";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          patient_id?: string;
+          doctor_id?: string;
+          requested_date?: string;
+          notes?: string | null;
+          status?: "waiting" | "scheduled" | "cancelled";
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
