@@ -37,6 +37,7 @@ export function SchedulesManager({ offices, schedules }: SchedulesManagerProps) 
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Schedule | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,7 +54,14 @@ export function SchedulesManager({ offices, schedules }: SchedulesManagerProps) 
     });
   }
 
-  function handleDelete(id: string) {
+  function handleDelete(schedule: Schedule) {
+    setConfirmDelete(schedule);
+  }
+
+  function confirmDeleteAction() {
+    if (!confirmDelete) return;
+    const id = confirmDelete.id;
+    setConfirmDelete(null);
     startTransition(async () => {
       await deleteSchedule(id);
     });
@@ -185,7 +193,7 @@ export function SchedulesManager({ offices, schedules }: SchedulesManagerProps) 
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => handleDelete(s.id)}
+                          onClick={() => handleDelete(s)}
                           disabled={isPending}
                           className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
                         >
@@ -200,6 +208,53 @@ export function SchedulesManager({ offices, schedules }: SchedulesManagerProps) 
           </div>
         );
       })}
+
+      {/* Confirmation dialog */}
+      {confirmDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              Confirmar eliminación
+            </h3>
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+              ¿Estás seguro que deseas eliminar el horario del{" "}
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                {DAY_NAMES[confirmDelete.dayOfWeek] ?? `Día ${confirmDelete.dayOfWeek}`}
+              </span>{" "}
+              de{" "}
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                {confirmDelete.startTime}
+              </span>{" "}
+              a{" "}
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                {confirmDelete.endTime}
+              </span>{" "}
+              en{" "}
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                {confirmDelete.officeName}
+              </span>
+              ? Esta acción no se puede deshacer.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="inline-flex h-10 items-center rounded-lg border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteAction}
+                disabled={isPending}
+                className="inline-flex h-10 items-center rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {isPending ? "Eliminando..." : "Sí, eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
