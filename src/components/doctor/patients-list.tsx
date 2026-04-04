@@ -30,6 +30,18 @@ interface PatientsListProps {
   departments: Department[];
 }
 
+function calcAge(birthDate: string | null): string {
+  if (!birthDate) return "—";
+  const birth = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return `${age} años`;
+}
+
 export function PatientsList({ patients, departments }: PatientsListProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +219,7 @@ export function PatientsList({ patients, departments }: PatientsListProps) {
             <thead>
               <tr className="border-b border-zinc-200 dark:border-zinc-800">
                 <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Nombre</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Email</th>
+                <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Edad</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Teléfono</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Sangre</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Ubicación</th>
@@ -217,7 +229,7 @@ export function PatientsList({ patients, departments }: PatientsListProps) {
               {patients.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">{p.fullName}</td>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.email}</td>
+                  <td className="px-4 py-3 tabular-nums text-zinc-600 dark:text-zinc-400">{calcAge(p.birthDate)}</td>
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.phone || "—"}</td>
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.bloodType || "—"}</td>
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">

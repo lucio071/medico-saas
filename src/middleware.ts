@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PREFIXES = ["/login", "/register", "/verify", "/_next", "/favicon"];
+const AUTH_ONLY_PREFIXES = ["/api"];
 
 function getRoleRedirect(role: string | null): string {
   if (role === "admin") return "/admin";
@@ -51,6 +52,14 @@ export async function middleware(request: NextRequest) {
 
   if (!user) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // API routes: authenticated but no role redirect
+  const isAuthOnly = AUTH_ONLY_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+  if (isAuthOnly) {
+    return response;
   }
 
   const { data: userRow } = await supabase

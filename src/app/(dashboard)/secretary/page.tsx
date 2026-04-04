@@ -158,7 +158,7 @@ export default async function SecretaryPage() {
       .from("patients")
       .select("id, user_id, phone, birth_date, users(full_name, email)")
       .eq("tenant_id", tenantId)
-      .order("user_id", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(100);
     patients = (data ?? []) as unknown as PatientWithUser[];
   }
