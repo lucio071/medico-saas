@@ -60,7 +60,7 @@ export default async function DoctorPage() {
     profile?.full_name?.trim() || profile?.email || user.email || "Médico";
   const tenantId = profile?.tenant_id ?? null;
 
-  const { data: doctorRow } = await supabase
+  const { data: doctorRow } = await adminDb
     .from("doctors")
     .select("id, specialty, consultation_duration")
     .eq("user_id", user.id)
@@ -86,7 +86,7 @@ export default async function DoctorPage() {
   if (doctorId) {
     const { start, end } = getTodayBoundsIso();
 
-    const { data: appts } = await supabase
+    const { data: appts } = await adminDb
       .from("appointments")
       .select("id, starts_at, status, notes, patient_id, office_id")
       .eq("doctor_id", doctorId)
@@ -100,7 +100,7 @@ export default async function DoctorPage() {
     const patientIds = [...new Set(allAppts.map((a) => a.patient_id))];
     const patientNameMap = new Map<string, string>();
     if (patientIds.length > 0) {
-      const { data: pRows } = await supabase
+      const { data: pRows } = await adminDb
         .from("patients")
         .select("id, user_id")
         .in("id", patientIds);
@@ -125,7 +125,7 @@ export default async function DoctorPage() {
     ];
     const officeNameMap = new Map<string, string>();
     if (officeIds.length > 0) {
-      const { data: oRows } = await supabase
+      const { data: oRows } = await adminDb
         .from("offices")
         .select("id, name")
         .in("id", officeIds);
@@ -169,7 +169,7 @@ export default async function DoctorPage() {
   let patientItems: PatientItem[] = [];
   if (tenantId) {
     // Query patients (without join — RLS can block the users join)
-    const { data } = await supabase
+    const { data } = await adminDb
       .from("patients")
       .select("id, user_id, phone, birth_date, blood_type, allergies, emergency_contact, department_id, city_id, address, neighborhood")
       .eq("tenant_id", tenantId)
@@ -199,14 +199,14 @@ export default async function DoctorPage() {
     const cityNameMap = new Map<number, string>();
 
     if (deptIds.length > 0) {
-      const { data: depts } = await supabase
+      const { data: depts } = await adminDb
         .from("departments")
         .select("id, name")
         .in("id", deptIds);
       for (const d of depts ?? []) deptNameMap.set(d.id, d.name);
     }
     if (cityIds.length > 0) {
-      const { data: cts } = await supabase
+      const { data: cts } = await adminDb
         .from("cities")
         .select("id, name")
         .in("id", cityIds);
@@ -237,7 +237,7 @@ export default async function DoctorPage() {
   }
 
   // Departments list for the patient form
-  const { data: departmentsList } = await supabase
+  const { data: departmentsList } = await adminDb
     .from("departments")
     .select("id, name")
     .order("name", { ascending: true });
@@ -255,7 +255,7 @@ export default async function DoctorPage() {
 
   let officeItems: OfficeItem[] = [];
   if (doctorId) {
-    const { data } = await supabase
+    const { data } = await adminDb
       .from("offices")
       .select("id, name, address, phone, is_active")
       .eq("doctor_id", doctorId)
@@ -284,7 +284,7 @@ export default async function DoctorPage() {
 
   let scheduleItems: ScheduleItem[] = [];
   if (doctorId) {
-    const { data } = await supabase
+    const { data } = await adminDb
       .from("doctor_schedules")
       .select("id, office_id, day_of_week, start_time, end_time")
       .eq("doctor_id", doctorId)
@@ -314,7 +314,7 @@ export default async function DoctorPage() {
     const until = new Date();
     until.setDate(until.getDate() + 30);
 
-    const { data: appts } = await supabase
+    const { data: appts } = await adminDb
       .from("appointments")
       .select("id, starts_at, patient_id")
       .eq("doctor_id", doctorId)

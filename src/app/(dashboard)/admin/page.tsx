@@ -80,13 +80,13 @@ export default async function AdminPage() {
     users: { full_name: string | null; email: string } | null;
   };
 
-  const { data: tenants } = await supabase
+  const { data: tenants } = await adminDb
     .from("tenants")
     .select("id, name, slug, created_at")
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const { data: allDoctors } = await supabase
+  const { data: allDoctors } = await adminDb
     .from("doctors")
     .select("id, tenant_id, users(full_name, email)")
     .limit(200);

@@ -49,13 +49,13 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     const doctorIds = (rels ?? []).map((r) => r.doctor_id);
 
     if (doctorIds.length > 0) {
-      const { data: docRows } = await supabase
+      const { data: docRows } = await adminDb
         .from("doctors")
         .select("id, user_id")
         .in("id", doctorIds);
 
       const docUserIds = (docRows ?? []).map((d) => d.user_id);
-      const { data: docUsers } = await supabase
+      const { data: docUsers } = await adminDb
         .from("users")
         .select("id, full_name")
         .in("id", docUserIds);
@@ -118,7 +118,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
 
   let gridAppointments: AppointmentCell[] = [];
 
-  const { data: appts } = await supabase
+  const { data: appts } = await adminDb
     .from("appointments")
     .select("id, slot_id, patient_id, status, notes, starts_at, ends_at, doctor_id")
     .in("doctor_id", doctorIds)
@@ -134,7 +134,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
   const patientPhoneMap = new Map<string, string | null>();
 
   if (patientIdsFromAppts.length > 0) {
-    const { data: pRows } = await supabase.from("patients").select("id, user_id, phone").in("id", patientIdsFromAppts);
+    const { data: pRows } = await adminDb.from("patients").select("id, user_id, phone").in("id", patientIdsFromAppts);
     const uIds = [...new Set((pRows ?? []).map((p) => p.user_id))];
     if (uIds.length > 0) {
       const { data: uRows } = await adminDb.from("users").select("id, full_name, email").in("id", uIds);
@@ -163,7 +163,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
 
   // Available slots for this date
   type SlotCell = { id: string; startTime: string; endTime: string; doctorId: string; officeId: string };
-  const { data: slotsData } = await supabase
+  const { data: slotsData } = await adminDb
     .from("appointment_slots")
     .select("id, start_time, end_time, doctor_id, office_id")
     .in("doctor_id", doctorIds)
@@ -202,7 +202,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
 
   let patientItems: PatientItem[] = [];
   {
-    const { data } = await supabase
+    const { data } = await adminDb
       .from("patients")
       .select("id, user_id, phone, birth_date, blood_type, allergies, emergency_contact, department_id, city_id, address, neighborhood")
       .eq("tenant_id", tenantId)
@@ -222,11 +222,11 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     const deptNameMap = new Map<number, string>();
     const cityNameMap = new Map<number, string>();
     if (deptIds.length > 0) {
-      const { data: depts } = await supabase.from("departments").select("id, name").in("id", deptIds);
+      const { data: depts } = await adminDb.from("departments").select("id, name").in("id", deptIds);
       for (const d of depts ?? []) deptNameMap.set(d.id, d.name);
     }
     if (cityIds.length > 0) {
-      const { data: cts } = await supabase.from("cities").select("id, name").in("id", cityIds);
+      const { data: cts } = await adminDb.from("cities").select("id, name").in("id", cityIds);
       for (const c of cts ?? []) cityNameMap.set(c.id, c.name);
     }
 
@@ -253,7 +253,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     });
   }
 
-  const { data: departmentsList } = await supabase
+  const { data: departmentsList } = await adminDb
     .from("departments")
     .select("id, name")
     .order("name", { ascending: true });
@@ -285,7 +285,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
 
   let waitlistItems: WaitlistItem[] = [];
   {
-    const { data } = await supabase
+    const { data } = await adminDb
       .from("waitlist")
       .select("id, patient_id, doctor_id, requested_date, notes")
       .eq("status", "waiting")
@@ -299,7 +299,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     const wlPatNameMap = new Map<string, string>();
     const wlPatPhoneMap = new Map<string, string | null>();
     if (wlPatIds.length > 0) {
-      const { data: pRows } = await supabase.from("patients").select("id, user_id, phone").in("id", wlPatIds);
+      const { data: pRows } = await adminDb.from("patients").select("id, user_id, phone").in("id", wlPatIds);
       const wlUids = [...new Set((pRows ?? []).map((p) => p.user_id))];
       if (wlUids.length > 0) {
         const { data: uRows } = await adminDb.from("users").select("id, full_name").in("id", wlUids);

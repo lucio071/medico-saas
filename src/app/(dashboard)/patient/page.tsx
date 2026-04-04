@@ -53,7 +53,7 @@ export default async function PatientPage() {
   const displayName =
     profile?.full_name?.trim() || profile?.email || user.email || "Paciente";
 
-  const { data: patientRow } = await supabase
+  const { data: patientRow } = await adminDb
     .from("patients")
     .select("id")
     .eq("user_id", user.id)
@@ -67,7 +67,7 @@ export default async function PatientPage() {
   if (patientId) {
     const now = new Date().toISOString();
 
-    const { data: appts } = await supabase
+    const { data: appts } = await adminDb
       .from("appointments")
       .select("*")
       .eq("patient_id", patientId)
@@ -82,7 +82,7 @@ export default async function PatientPage() {
       ...new Set(upcomingAppointments.map((a) => a.doctor_id)),
     ];
     if (doctorIds.length > 0) {
-      const { data: doctors } = await supabase
+      const { data: doctors } = await adminDb
         .from("doctors")
         .select("id, user_id")
         .in("id", doctorIds);
@@ -90,7 +90,7 @@ export default async function PatientPage() {
       const userIds = [...new Set((doctors ?? []).map((d) => d.user_id))];
       const { data: doctorUsers } =
         userIds.length > 0
-          ? await supabase
+          ? await adminDb
               .from("users")
               .select("id, full_name")
               .in("id", userIds)
@@ -114,7 +114,7 @@ export default async function PatientPage() {
 
   let prescriptions: PrescriptionRow[] = [];
   if (patientId) {
-    const { data: rx } = await supabase
+    const { data: rx } = await adminDb
       .from("prescriptions")
       .select("*")
       .eq("patient_id", patientId)
