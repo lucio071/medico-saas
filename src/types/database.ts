@@ -82,6 +82,7 @@ export type Database = {
           full_name: string;
           phone: string | null;
           role: "admin" | "doctor" | "secretary" | "patient";
+          assigned_doctor_id: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string | null;
@@ -93,6 +94,7 @@ export type Database = {
           full_name: string;
           phone?: string | null;
           role: "admin" | "doctor" | "secretary" | "patient";
+          assigned_doctor_id?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string | null;
@@ -104,6 +106,7 @@ export type Database = {
           full_name?: string;
           phone?: string | null;
           role?: "admin" | "doctor" | "secretary" | "patient";
+          assigned_doctor_id?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string | null;

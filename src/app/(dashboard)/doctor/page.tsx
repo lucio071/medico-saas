@@ -3,6 +3,7 @@ import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { SecretariesList } from "@/components/doctor/secretaries-list";
 import { DoctorTabs } from "@/components/doctor/doctor-tabs";
 import { KanbanBoard } from "@/components/doctor/kanban-board";
 import { PatientsList } from "@/components/doctor/patients-list";
@@ -339,6 +340,34 @@ export default async function DoctorPage() {
   }));
 
   // ================================================================
+  // TAB 6: Secretaries
+  // ================================================================
+  type SecretaryItem = {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string | null;
+    isActive: boolean;
+  };
+
+  let secretaryItems: SecretaryItem[] = [];
+  if (doctorId) {
+    const { data: secRows } = await supabase
+      .from("users")
+      .select("id, full_name, email, phone, is_active")
+      .eq("role", "secretary")
+      .eq("assigned_doctor_id", doctorId);
+
+    secretaryItems = (secRows ?? []).map((s) => ({
+      id: s.id,
+      fullName: s.full_name?.trim() || "Sin nombre",
+      email: s.email,
+      phone: s.phone,
+      isActive: s.is_active,
+    }));
+  }
+
+  // ================================================================
   // Build tabs
   // ================================================================
   const tabs = [
@@ -376,6 +405,11 @@ export default async function DoctorPage() {
           appointments={rxAppointments}
         />
       ),
+    },
+    {
+      id: "secretarias",
+      label: "Secretarias",
+      content: <SecretariesList secretaries={secretaryItems} />,
     },
   ];
 

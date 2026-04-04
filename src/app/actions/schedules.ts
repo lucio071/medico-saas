@@ -92,6 +92,33 @@ export async function deleteSchedule(scheduleId: string) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "No autenticado." };
 
+  // Get schedule details to check for active appointments
+  const { data: schedule } = await supabase
+    .from("doctor_schedules")
+    .select("doctor_id, office_id, day_of_week, start_time, end_time")
+    .eq("id", scheduleId)
+    .single();
+
+  if (!schedule) return { error: "Horario no encontrado." };
+
+  // Check for future non-cancelled appointments on this day/time/office
+  if (schedule.office_id) {
+    const now = new Date();
+    const { count } = await supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("doctor_id", schedule.doctor_id)
+      .eq("office_id", schedule.office_id)
+      .gte("starts_at", now.toISOString())
+      .in("status", ["scheduled", "confirmed"]);
+
+    if (count && count > 0) {
+      return {
+        error: "Cancela las citas activas primero. Hay " + count + " cita(s) programada(s) en este consultorio.",
+      };
+    }
+  }
+
   const { error } = await supabase
     .from("doctor_schedules")
     .delete()
