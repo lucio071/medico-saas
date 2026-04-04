@@ -8,6 +8,7 @@ import { KanbanBoard } from "@/components/doctor/kanban-board";
 import { PatientsList } from "@/components/doctor/patients-list";
 import { NewAppointmentForm } from "@/components/secretary/new-appointment-form";
 import { SchedulesManager } from "@/components/doctor/schedules-manager";
+import { DoctorSelector } from "@/components/secretary/doctor-selector";
 
 function getTodayBoundsIso() {
   const now = new Date();
@@ -27,26 +28,65 @@ function formatTodayHeading() {
   }).format(new Date());
 }
 
-export default async function SecretaryPage() {
+interface PageProps {
+  searchParams: Promise<{ doctor?: string }>;
+}
+
+export default async function SecretaryPage({ searchParams }: PageProps) {
   const user = await requireAuth();
   const role = await getCurrentUserRole();
   if (role !== "secretary") redirect(getRolePath(role));
 
   const supabase = await createClient();
+  const resolvedParams = await searchParams;
 
   // --- Secretary profile ---
   const { data: secUser } = await supabase
     .from("users")
-    .select("full_name, email, tenant_id, assigned_doctor_id")
+    .select("full_name, email, tenant_id")
     .eq("id", user.id)
     .single();
 
   const displayName =
     secUser?.full_name?.trim() || secUser?.email || user.email || "Secretaria";
   const tenantId = secUser?.tenant_id ?? null;
-  const assignedDoctorId = secUser?.assigned_doctor_id ?? null;
 
-  if (!tenantId || !assignedDoctorId) {
+  // --- Load assigned doctors via secretary_doctors ---
+  type AssignedDoctor = { doctorId: string; doctorName: string };
+  let assignedDoctors: AssignedDoctor[] = [];
+
+  if (tenantId) {
+    const { data: rels } = await supabase
+      .from("secretary_doctors")
+      .select("doctor_id")
+      .eq("secretary_id", user.id);
+
+    const doctorIds = (rels ?? []).map((r) => r.doctor_id);
+
+    if (doctorIds.length > 0) {
+      const { data: docRows } = await supabase
+        .from("doctors")
+        .select("id, user_id")
+        .in("id", doctorIds);
+
+      const docUserIds = (docRows ?? []).map((d) => d.user_id);
+      const { data: docUsers } = await supabase
+        .from("users")
+        .select("id, full_name")
+        .in("id", docUserIds);
+
+      const nameMap = new Map(
+        (docUsers ?? []).map((u) => [u.id, u.full_name?.trim() || "Médico"]),
+      );
+
+      assignedDoctors = (docRows ?? []).map((d) => ({
+        doctorId: d.id,
+        doctorName: nameMap.get(d.user_id) ?? "Médico",
+      }));
+    }
+  }
+
+  if (!tenantId || assignedDoctors.length === 0) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
         <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -67,19 +107,22 @@ export default async function SecretaryPage() {
     );
   }
 
-  // --- Doctor info ---
-  const { data: doctorUser } = await supabase
-    .from("users")
-    .select("full_name")
-    .eq("id", (
-      await supabase.from("doctors").select("user_id").eq("id", assignedDoctorId).single()
-    ).data?.user_id ?? "")
-    .single();
+  // --- Select active doctor (from URL param or first) ---
+  const selectedDoctorId =
+    resolvedParams.doctor && assignedDoctors.some((d) => d.doctorId === resolvedParams.doctor)
+      ? resolvedParams.doctor
+      : assignedDoctors[0].doctorId;
 
-  const doctorName = doctorUser?.full_name?.trim() || "Médico";
+  const selectedDoctorName =
+    assignedDoctors.find((d) => d.doctorId === selectedDoctorId)?.doctorName ?? "Médico";
+
+  const doctorSelectorOptions = assignedDoctors.map((d) => ({
+    id: d.doctorId,
+    name: d.doctorName,
+  }));
 
   // ================================================================
-  // TAB 1: Kanban — Today's appointments for this doctor
+  // TAB 1: Kanban — Today's appointments for selected doctor
   // ================================================================
   type KanbanCard = {
     id: string;
@@ -96,44 +139,29 @@ export default async function SecretaryPage() {
     const { data: appts } = await supabase
       .from("appointments")
       .select("id, starts_at, status, notes, patient_id, office_id")
-      .eq("doctor_id", assignedDoctorId)
+      .eq("doctor_id", selectedDoctorId)
       .gte("starts_at", start)
       .lte("starts_at", end)
       .order("starts_at", { ascending: true });
 
     const allAppts = appts ?? [];
 
-    // Resolve patient names
     const patientIds = [...new Set(allAppts.map((a) => a.patient_id))];
     const patientNameMap = new Map<string, string>();
     if (patientIds.length > 0) {
-      const { data: pRows } = await supabase
-        .from("patients")
-        .select("id, user_id")
-        .in("id", patientIds);
+      const { data: pRows } = await supabase.from("patients").select("id, user_id").in("id", patientIds);
       const uIds = [...new Set((pRows ?? []).map((p) => p.user_id))];
       if (uIds.length > 0) {
-        const { data: uRows } = await supabase
-          .from("users")
-          .select("id, full_name, email")
-          .in("id", uIds);
-        const uidMap = new Map(
-          (uRows ?? []).map((u) => [u.id, u.full_name?.trim() || u.email]),
-        );
-        for (const p of pRows ?? []) {
-          patientNameMap.set(p.id, uidMap.get(p.user_id) ?? "Paciente");
-        }
+        const { data: uRows } = await supabase.from("users").select("id, full_name, email").in("id", uIds);
+        const uidMap = new Map((uRows ?? []).map((u) => [u.id, u.full_name?.trim() || u.email]));
+        for (const p of pRows ?? []) patientNameMap.set(p.id, uidMap.get(p.user_id) ?? "Paciente");
       }
     }
 
-    // Resolve office names
     const officeIds = [...new Set(allAppts.map((a) => a.office_id).filter(Boolean) as string[])];
     const officeNameMap = new Map<string, string>();
     if (officeIds.length > 0) {
-      const { data: oRows } = await supabase
-        .from("offices")
-        .select("id, name")
-        .in("id", officeIds);
+      const { data: oRows } = await supabase.from("offices").select("id, name").in("id", officeIds);
       for (const o of oRows ?? []) officeNameMap.set(o.id, o.name);
     }
 
@@ -148,7 +176,7 @@ export default async function SecretaryPage() {
   }
 
   // ================================================================
-  // TAB 2: Patients (same as doctor)
+  // TAB 2: Patients
   // ================================================================
   type PatientItem = {
     id: string;
@@ -182,20 +210,14 @@ export default async function SecretaryPage() {
     const userIds = [...new Set(rows.map((p) => p.user_id))];
     const userMap = new Map<string, { full_name: string; email: string; is_active: boolean }>();
     if (userIds.length > 0) {
-      const { data: uRows } = await supabase
-        .from("users")
-        .select("id, full_name, email, is_active")
-        .in("id", userIds);
-      for (const u of uRows ?? []) {
-        userMap.set(u.id, { full_name: u.full_name, email: u.email, is_active: u.is_active });
-      }
+      const { data: uRows } = await supabase.from("users").select("id, full_name, email, is_active").in("id", userIds);
+      for (const u of uRows ?? []) userMap.set(u.id, { full_name: u.full_name, email: u.email, is_active: u.is_active });
     }
 
     const deptIds = [...new Set(rows.map((p) => p.department_id).filter(Boolean))] as number[];
     const cityIds = [...new Set(rows.map((p) => p.city_id).filter(Boolean))] as number[];
     const deptNameMap = new Map<number, string>();
     const cityNameMap = new Map<number, string>();
-
     if (deptIds.length > 0) {
       const { data: depts } = await supabase.from("departments").select("id, name").in("id", deptIds);
       for (const d of depts ?? []) deptNameMap.set(d.id, d.name);
@@ -234,40 +256,27 @@ export default async function SecretaryPage() {
     .order("name", { ascending: true });
 
   // ================================================================
-  // TAB 3: New appointment — doctor + patients for selects
+  // TAB 3: New appointment
   // ================================================================
-  const doctorOptions = [{ id: assignedDoctorId, name: doctorName }];
-  const patientOptions = patientItems
-    .filter((p) => p.isActive)
-    .map((p) => ({ id: p.id, name: p.fullName }));
+  const doctorOptions = [{ id: selectedDoctorId, name: selectedDoctorName }];
+  const patientOptions = patientItems.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.fullName }));
 
   // ================================================================
-  // TAB 4: Schedules for assigned doctor
+  // TAB 4: Schedules for selected doctor
   // ================================================================
-  type OfficeItem = { id: string; name: string };
-  let officeItems: OfficeItem[] = [];
+  let officeItems: { id: string; name: string }[] = [];
   {
-    const { data } = await supabase
-      .from("offices")
-      .select("id, name")
-      .eq("doctor_id", assignedDoctorId);
+    const { data } = await supabase.from("offices").select("id, name").eq("doctor_id", selectedDoctorId);
     officeItems = (data ?? []).map((o) => ({ id: o.id, name: o.name }));
   }
 
-  type ScheduleItem = {
-    id: string;
-    officeId: string | null;
-    officeName: string;
-    dayOfWeek: number;
-    startTime: string;
-    endTime: string;
-  };
+  type ScheduleItem = { id: string; officeId: string | null; officeName: string; dayOfWeek: number; startTime: string; endTime: string };
   let scheduleItems: ScheduleItem[] = [];
   {
     const { data } = await supabase
       .from("doctor_schedules")
       .select("id, office_id, day_of_week, start_time, end_time")
-      .eq("doctor_id", assignedDoctorId)
+      .eq("doctor_id", selectedDoctorId)
       .order("day_of_week", { ascending: true });
 
     const officeMap = new Map(officeItems.map((o) => [o.id, o.name]));
@@ -303,22 +312,12 @@ export default async function SecretaryPage() {
     {
       id: "cita",
       label: "Nueva cita",
-      content: (
-        <NewAppointmentForm
-          doctors={doctorOptions}
-          patients={patientOptions}
-        />
-      ),
+      content: <NewAppointmentForm doctors={doctorOptions} patients={patientOptions} />,
     },
     {
       id: "horarios",
       label: "Horarios",
-      content: (
-        <SchedulesManager
-          offices={officeItems}
-          schedules={scheduleItems}
-        />
-      ),
+      content: <SchedulesManager offices={officeItems} schedules={scheduleItems} />,
     },
   ];
 
@@ -328,13 +327,14 @@ export default async function SecretaryPage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Panel de secretaria — Dr. {doctorName}
+              Panel de secretaria
             </p>
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               {displayName}
             </h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <DoctorSelector doctors={doctorSelectorOptions} selectedId={selectedDoctorId} />
             <p className="text-sm capitalize text-zinc-500 dark:text-zinc-400">
               {formatTodayHeading()}
             </p>

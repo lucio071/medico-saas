@@ -60,7 +60,7 @@ export default async function DoctorPage() {
 
   const { data: doctorRow } = await supabase
     .from("doctors")
-    .select("id, specialty")
+    .select("id, specialty, consultation_duration")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -352,19 +352,28 @@ export default async function DoctorPage() {
 
   let secretaryItems: SecretaryItem[] = [];
   if (doctorId) {
-    const { data: secRows } = await supabase
-      .from("users")
-      .select("id, full_name, email, phone, is_active")
-      .eq("role", "secretary")
-      .eq("assigned_doctor_id", doctorId);
+    // Get secretary IDs from junction table
+    const { data: rels } = await supabase
+      .from("secretary_doctors")
+      .select("secretary_id")
+      .eq("doctor_id", doctorId);
 
-    secretaryItems = (secRows ?? []).map((s) => ({
-      id: s.id,
-      fullName: s.full_name?.trim() || "Sin nombre",
-      email: s.email,
-      phone: s.phone,
-      isActive: s.is_active,
-    }));
+    const secIds = (rels ?? []).map((r) => r.secretary_id);
+
+    if (secIds.length > 0) {
+      const { data: secRows } = await supabase
+        .from("users")
+        .select("id, full_name, email, phone, is_active")
+        .in("id", secIds);
+
+      secretaryItems = (secRows ?? []).map((s) => ({
+        id: s.id,
+        fullName: s.full_name?.trim() || "Sin nombre",
+        email: s.email,
+        phone: s.phone,
+        isActive: s.is_active,
+      }));
+    }
   }
 
   // ================================================================
@@ -393,6 +402,8 @@ export default async function DoctorPage() {
         <SchedulesManager
           offices={officeItems.map((o) => ({ id: o.id, name: o.name }))}
           schedules={scheduleItems}
+          consultationDuration={doctorRow?.consultation_duration ?? 30}
+          showDurationConfig
         />
       ),
     },

@@ -39,30 +39,71 @@ export async function createSecretary(formData: FormData) {
 
   const admin = createAdminClient();
 
-  const { data: authData, error: authError } =
-    await admin.auth.admin.createUser({
+  // Check if user already exists (might be secretary for another doctor)
+  const { data: existingUsers } = await admin
+    .from("users")
+    .select("id, role")
+    .eq("email", email)
+    .limit(1);
+
+  let secretaryUserId: string;
+
+  if (existingUsers && existingUsers.length > 0) {
+    // User exists — just link via secretary_doctors
+    const existingUser = existingUsers[0];
+    if (existingUser.role !== "secretary") {
+      return { error: "Ese email ya está registrado con otro rol." };
+    }
+    secretaryUserId = existingUser.id;
+  } else {
+    // Create new auth user + users record
+    const { data: authData, error: authError } =
+      await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName },
+      });
+
+    if (authError || !authData.user) {
+      return { error: authError?.message ?? "Error creando usuario." };
+    }
+
+    secretaryUserId = authData.user.id;
+
+    const { error: userError } = await admin.from("users").insert({
+      id: secretaryUserId,
+      tenant_id: currentUser.tenant_id,
       email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName },
+      full_name: fullName,
+      phone: phone || null,
+      role: "secretary",
+      is_active: true,
     });
 
-  if (authError || !authData.user) {
-    return { error: authError?.message ?? "Error creando usuario." };
+    if (userError) return { error: userError.message };
   }
 
-  const { error: userError } = await admin.from("users").insert({
-    id: authData.user.id,
+  // Check if relationship already exists
+  const { data: existingRel } = await admin
+    .from("secretary_doctors")
+    .select("id")
+    .eq("secretary_id", secretaryUserId)
+    .eq("doctor_id", doctor.id)
+    .limit(1);
+
+  if (existingRel && existingRel.length > 0) {
+    return { error: "Esta secretaria ya está asignada a este médico." };
+  }
+
+  // Insert into secretary_doctors
+  const { error: relError } = await admin.from("secretary_doctors").insert({
+    secretary_id: secretaryUserId,
+    doctor_id: doctor.id,
     tenant_id: currentUser.tenant_id,
-    email,
-    full_name: fullName,
-    phone: phone || null,
-    role: "secretary",
-    assigned_doctor_id: doctor.id,
-    is_active: true,
   });
 
-  if (userError) return { error: userError.message };
+  if (relError) return { error: relError.message };
 
   revalidatePath("/doctor");
   return { error: null };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { upsertSchedule, deleteSchedule } from "@/app/actions/schedules";
+import { upsertSchedule, deleteSchedule, updateConsultationDuration } from "@/app/actions/schedules";
 
 interface Office {
   id: string;
@@ -20,6 +20,8 @@ interface Schedule {
 interface SchedulesManagerProps {
   offices: Office[];
   schedules: Schedule[];
+  consultationDuration?: number;
+  showDurationConfig?: boolean;
 }
 
 const DAY_NAMES = [
@@ -32,12 +34,21 @@ const DAY_NAMES = [
   "Sábado",
 ];
 
-export function SchedulesManager({ offices, schedules }: SchedulesManagerProps) {
+export function SchedulesManager({ offices, schedules, consultationDuration = 30, showDurationConfig = false }: SchedulesManagerProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
   const [confirmDelete, setConfirmDelete] = useState<Schedule | null>(null);
+  const [duration, setDuration] = useState(consultationDuration);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function handleDurationChange(newDuration: number) {
+    setDuration(newDuration);
+    startTransition(async () => {
+      await updateConsultationDuration(newDuration);
+    });
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -62,8 +73,10 @@ export function SchedulesManager({ offices, schedules }: SchedulesManagerProps) 
     if (!confirmDelete) return;
     const id = confirmDelete.id;
     setConfirmDelete(null);
+    setDeleteError(null);
     startTransition(async () => {
-      await deleteSchedule(id);
+      const res = await deleteSchedule(id);
+      if (res.error) setDeleteError(res.error);
     });
   }
 
@@ -96,6 +109,43 @@ export function SchedulesManager({ offices, schedules }: SchedulesManagerProps) 
           </button>
         ) : null}
       </div>
+
+      {/* Duration config */}
+      {showDurationConfig && offices.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Duración de consulta:
+          </label>
+          <div className="flex gap-2">
+            {[20, 30, 45, 60].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => handleDurationChange(d)}
+                disabled={isPending}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  duration === d
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                }`}
+              >
+                {d} min
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Los slots se generan automáticamente para las próximas 4 semanas.
+          </p>
+        </div>
+      ) : null}
+
+      {/* Delete error */}
+      {deleteError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+          {deleteError}
+          <button type="button" onClick={() => setDeleteError(null)} className="ml-2 font-medium underline">Cerrar</button>
+        </div>
+      ) : null}
 
       {offices.length === 0 ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">

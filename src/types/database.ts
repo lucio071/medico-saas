@@ -82,7 +82,6 @@ export type Database = {
           full_name: string;
           phone: string | null;
           role: "admin" | "doctor" | "secretary" | "patient";
-          assigned_doctor_id: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string | null;
@@ -94,7 +93,6 @@ export type Database = {
           full_name: string;
           phone?: string | null;
           role: "admin" | "doctor" | "secretary" | "patient";
-          assigned_doctor_id?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string | null;
@@ -106,7 +104,6 @@ export type Database = {
           full_name?: string;
           phone?: string | null;
           role?: "admin" | "doctor" | "secretary" | "patient";
-          assigned_doctor_id?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string | null;
@@ -128,6 +125,7 @@ export type Database = {
           user_id: string;
           specialty: string | null;
           license_number: string | null;
+          consultation_duration: number;
           department_id: number | null;
           city_id: number | null;
           created_at: string;
@@ -138,6 +136,7 @@ export type Database = {
           user_id: string;
           specialty?: string | null;
           license_number?: string | null;
+          consultation_duration?: number;
           department_id?: number | null;
           city_id?: number | null;
           created_at?: string;
@@ -148,6 +147,7 @@ export type Database = {
           user_id?: string;
           specialty?: string | null;
           license_number?: string | null;
+          consultation_duration?: number;
           department_id?: number | null;
           city_id?: number | null;
           created_at?: string;
@@ -261,7 +261,7 @@ export type Database = {
       patients: {
         Row: {
           id: string;
-          tenant_id: string;
+          tenant_id: string | null;
           user_id: string;
           birth_date: string | null;
           phone: string | null;
@@ -276,7 +276,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          tenant_id: string;
+          tenant_id?: string | null;
           user_id: string;
           birth_date?: string | null;
           phone?: string | null;
@@ -313,6 +313,69 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      patient_doctors: {
+        Row: {
+          id: string;
+          patient_id: string;
+          doctor_id: string;
+          is_primary: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          doctor_id: string;
+          is_primary?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          patient_id?: string;
+          doctor_id?: string;
+          is_primary?: boolean;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "patient_doctors_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_doctors_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      secretary_doctors: {
+        Row: {
+          id: string;
+          secretary_id: string;
+          doctor_id: string;
+          tenant_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          secretary_id: string;
+          doctor_id: string;
+          tenant_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          secretary_id?: string;
+          doctor_id?: string;
+          tenant_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       appointment_slots: {
         Row: {
@@ -450,31 +513,43 @@ export type Database = {
         Row: {
           id: string;
           tenant_id: string;
-          appointment_id: string;
+          appointment_id: string | null;
           doctor_id: string;
           patient_id: string;
+          diagnosis: string | null;
           instructions: string;
           medications: Json;
+          pdf_url: string | null;
+          status: string;
+          expires_at: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           tenant_id: string;
-          appointment_id: string;
+          appointment_id?: string | null;
           doctor_id: string;
           patient_id: string;
+          diagnosis?: string | null;
           instructions: string;
           medications?: Json;
+          pdf_url?: string | null;
+          status?: string;
+          expires_at?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           tenant_id?: string;
-          appointment_id?: string;
+          appointment_id?: string | null;
           doctor_id?: string;
           patient_id?: string;
+          diagnosis?: string | null;
           instructions?: string;
           medications?: Json;
+          pdf_url?: string | null;
+          status?: string;
+          expires_at?: string | null;
           created_at?: string;
         };
         Relationships: [
