@@ -164,7 +164,7 @@ export default async function PatientPage() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="font-medium text-zinc-900 dark:text-zinc-100">
-                        {formatDateTime(a.starts_at)}
+                        {formatDateTime(a.starts_at ?? a.scheduled_at ?? "")}
                       </p>
                       <p className="text-sm text-zinc-600 dark:text-zinc-400">
                         {doctorNames.get(a.doctor_id) ?? "Profesional"}

@@ -76,6 +76,7 @@ export async function createAppointment(formData: FormData) {
     tenant_id: currentUser.tenant_id,
     doctor_id: doctorId,
     patient_id: patientId,
+    scheduled_at: startIso,
     starts_at: startIso,
     ends_at: endIso,
     notes: notes || null,

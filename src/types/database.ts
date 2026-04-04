@@ -447,8 +447,9 @@ export type Database = {
           office_id: string | null;
           slot_id: string | null;
           status: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show";
-          starts_at: string;
-          ends_at: string;
+          scheduled_at: string | null;
+          starts_at: string | null;
+          ends_at: string | null;
           notes: string | null;
           created_at: string;
         };
@@ -460,8 +461,9 @@ export type Database = {
           office_id?: string | null;
           slot_id?: string | null;
           status?: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show";
-          starts_at: string;
-          ends_at: string;
+          scheduled_at?: string | null;
+          starts_at?: string | null;
+          ends_at?: string | null;
           notes?: string | null;
           created_at?: string;
         };
@@ -473,8 +475,9 @@ export type Database = {
           office_id?: string | null;
           slot_id?: string | null;
           status?: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show";
-          starts_at?: string;
-          ends_at?: string;
+          scheduled_at?: string | null;
+          starts_at?: string | null;
+          ends_at?: string | null;
           notes?: string | null;
           created_at?: string;
         };

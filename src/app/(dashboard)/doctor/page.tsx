@@ -88,7 +88,7 @@ export default async function DoctorPage() {
 
     const { data: appts } = await adminDb
       .from("appointments")
-      .select("id, starts_at, status, notes, patient_id, office_id")
+      .select("id, starts_at, scheduled_at, status, notes, patient_id, office_id")
       .eq("doctor_id", doctorId)
       .gte("starts_at", start)
       .lte("starts_at", end)
@@ -136,7 +136,7 @@ export default async function DoctorPage() {
 
     kanbanCards = allAppts.map((a) => ({
       id: a.id,
-      startsAt: a.starts_at,
+      startsAt: a.starts_at ?? a.scheduled_at ?? "",
       patientName: patientNameMap.get(a.patient_id) ?? "Paciente",
       officeName: a.office_id ? (officeNameMap.get(a.office_id) ?? "") : "",
       notes: a.notes,
@@ -316,7 +316,7 @@ export default async function DoctorPage() {
 
     const { data: appts } = await adminDb
       .from("appointments")
-      .select("id, starts_at, patient_id")
+      .select("id, starts_at, scheduled_at, patient_id")
       .eq("doctor_id", doctorId)
       .neq("status", "cancelled")
       .gte("starts_at", since.toISOString())
@@ -330,7 +330,7 @@ export default async function DoctorPage() {
         )?.fullName ?? "Paciente";
       return {
         id: a.id,
-        label: formatApptLabel(a.starts_at, pName),
+        label: formatApptLabel(a.starts_at ?? a.scheduled_at ?? "", pName),
         patientId: a.patient_id,
       };
     });

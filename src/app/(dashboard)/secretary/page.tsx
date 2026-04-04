@@ -120,7 +120,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
 
   const { data: appts } = await adminDb
     .from("appointments")
-    .select("id, slot_id, patient_id, status, notes, starts_at, ends_at, doctor_id")
+    .select("id, slot_id, patient_id, status, notes, starts_at, ends_at, scheduled_at, doctor_id")
     .in("doctor_id", doctorIds)
     .gte("starts_at", dateBoundsStart)
     .lte("starts_at", dateBoundsEnd)
@@ -156,8 +156,8 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     patientName: patientNameMap.get(a.patient_id) ?? "Paciente",
     status: a.status,
     notes: a.notes,
-    startTime: extractTime(a.starts_at),
-    endTime: extractTime(a.ends_at),
+    startTime: extractTime(a.starts_at ?? a.scheduled_at ?? ""),
+    endTime: extractTime(a.ends_at ?? a.starts_at ?? a.scheduled_at ?? ""),
     doctorId: a.doctor_id,
   }));
 

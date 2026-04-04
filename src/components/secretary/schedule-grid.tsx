@@ -87,6 +87,8 @@ export function ScheduleGrid({
   const [selectedAppt, setSelectedAppt] = useState<AppointmentCell | null>(null);
   const [bookingSlot, setBookingSlot] = useState<SlotCell | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   // ─── Status counters ───
   const counts: StatusCounts = { scheduled: 0, confirmed: 0, attended: 0, cancelled: 0, no_show: 0 };
@@ -122,16 +124,31 @@ export function ScheduleGrid({
   // ─── Handlers ───
   function handleStatusChange(apptId: string, newStatus: Status) {
     setSelectedAppt(null);
+    setActionError(null);
     startTransition(async () => {
-      await updateAppointmentStatus(apptId, newStatus);
+      const res = await updateAppointmentStatus(apptId, newStatus);
+      if (res.error) setActionError(res.error);
+      else setActionSuccess("Estado actualizado.");
     });
   }
 
   function handleBookSlot(fd: FormData) {
-    setBookingSlot(null);
+    setActionError(null);
+    setActionSuccess(null);
     startTransition(async () => {
-      await bookSlot(fd);
+      const res = await bookSlot(fd);
+      if (res.error) {
+        setActionError(res.error);
+      } else {
+        setBookingSlot(null);
+        setActionSuccess("Cita agendada correctamente.");
+      }
     });
+  }
+
+  // Auto-clear success after 3s
+  if (actionSuccess) {
+    setTimeout(() => setActionSuccess(null), 3000);
   }
 
   return (
@@ -154,6 +171,19 @@ export function ScheduleGrid({
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Total</p>
         </div>
       </div>
+
+      {/* Feedback messages */}
+      {actionError ? (
+        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+          {actionError}
+          <button type="button" onClick={() => setActionError(null)} className="ml-3 font-medium underline">Cerrar</button>
+        </div>
+      ) : null}
+      {actionSuccess ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-300">
+          {actionSuccess}
+        </div>
+      ) : null}
 
       {/* Grid */}
       <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

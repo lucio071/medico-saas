@@ -74,6 +74,7 @@ export async function bookSlot(formData: FormData) {
       office_id: slot.office_id,
       slot_id: slot.id,
       status: "scheduled",
+      scheduled_at: startIso,
       starts_at: startIso,
       ends_at: endIso,
       notes: notes || null,

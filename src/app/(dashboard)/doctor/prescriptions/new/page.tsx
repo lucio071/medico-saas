@@ -92,7 +92,7 @@ export default async function NewPrescriptionPage() {
         return {
           id: a.id,
           patientName,
-          label: formatApptLabel(a.starts_at, patientName),
+          label: formatApptLabel(a.starts_at ?? "", patientName),
         };
       });
     }
