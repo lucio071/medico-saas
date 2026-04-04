@@ -47,7 +47,7 @@ export async function upsertSchedule(formData: FormData) {
         day_of_week: dayOfWeek,
         start_time: startTime,
         end_time: endTime,
-        is_available: true,
+        is_active: true,
       })
       .eq("id", scheduleId);
     if (error) return { error: error.message };
@@ -59,7 +59,7 @@ export async function upsertSchedule(formData: FormData) {
       day_of_week: dayOfWeek,
       start_time: startTime,
       end_time: endTime,
-      is_available: true,
+      is_active: true,
     });
     if (error) return { error: error.message };
   }

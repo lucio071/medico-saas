@@ -169,7 +169,7 @@ export type Database = {
           day_of_week: number;
           start_time: string;
           end_time: string;
-          is_available: boolean;
+          is_active: boolean;
           created_at: string;
         };
         Insert: {
@@ -180,7 +180,7 @@ export type Database = {
           day_of_week: number;
           start_time: string;
           end_time: string;
-          is_available?: boolean;
+          is_active?: boolean;
           created_at?: string;
         };
         Update: {
@@ -191,7 +191,7 @@ export type Database = {
           day_of_week?: number;
           start_time?: string;
           end_time?: string;
-          is_available?: boolean;
+          is_active?: boolean;
           created_at?: string;
         };
         Relationships: [
