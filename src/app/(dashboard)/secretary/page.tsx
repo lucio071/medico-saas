@@ -41,7 +41,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
   let assignedDoctors: DoctorInfo[] = [];
 
   if (tenantId) {
-    const { data: rels } = await supabase
+    const { data: rels } = await adminDb
       .from("secretary_doctors")
       .select("doctor_id")
       .eq("secretary_id", user.id);

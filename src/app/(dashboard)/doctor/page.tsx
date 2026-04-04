@@ -355,7 +355,7 @@ export default async function DoctorPage() {
   let secretaryItems: SecretaryItem[] = [];
   if (doctorId) {
     // Get secretary IDs from junction table
-    const { data: rels } = await supabase
+    const { data: rels } = await adminDb
       .from("secretary_doctors")
       .select("secretary_id")
       .eq("doctor_id", doctorId);
