@@ -38,7 +38,7 @@ export type Database = {
           id: string;
           tenant_id: string | null;
           email: string;
-          full_name: string | null;
+          full_name: string;
           phone: string | null;
           role: "admin" | "doctor" | "secretary" | "patient";
           is_active: boolean;
@@ -49,7 +49,7 @@ export type Database = {
           id: string;
           tenant_id?: string | null;
           email: string;
-          full_name?: string | null;
+          full_name: string;
           phone?: string | null;
           role: "admin" | "doctor" | "secretary" | "patient";
           is_active?: boolean;
@@ -60,7 +60,7 @@ export type Database = {
           id?: string;
           tenant_id?: string | null;
           email?: string;
-          full_name?: string | null;
+          full_name?: string;
           phone?: string | null;
           role?: "admin" | "doctor" | "secretary" | "patient";
           is_active?: boolean;
@@ -143,7 +143,15 @@ export type Database = {
           is_available?: boolean;
           created_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "doctor_schedules_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       patients: {
         Row: {
@@ -217,7 +225,22 @@ export type Database = {
           notes?: string | null;
           created_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "appointments_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       prescriptions: {
         Row: {
@@ -250,7 +273,29 @@ export type Database = {
           medications?: Json;
           created_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "prescriptions_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "prescriptions_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "prescriptions_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       whatsapp_sessions: {
         Row: {
@@ -283,7 +328,15 @@ export type Database = {
           created_at?: string;
           updated_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: Record<string, never>;
