@@ -28,10 +28,40 @@ export async function bookSlot(formData: FormData) {
   if (!slot) return { error: "Slot no encontrado." };
   if (slot.status !== "available") return { error: "Este horario ya no está disponible." };
 
-  // Create appointment
   const startDt = new Date(`${slot.slot_date}T${slot.start_time}`);
   const endDt = new Date(`${slot.slot_date}T${slot.end_time}`);
+  const startIso = startDt.toISOString();
+  const endIso = endDt.toISOString();
 
+  // Check if patient already has appointment at this time
+  const { data: patientConflict } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("patient_id", patientId)
+    .in("status", ["scheduled", "confirmed"])
+    .lt("starts_at", endIso)
+    .gt("ends_at", startIso)
+    .limit(1);
+
+  if (patientConflict && patientConflict.length > 0) {
+    return { error: "Este paciente ya tiene una cita en ese horario." };
+  }
+
+  // Check if doctor already has another patient at this time
+  const { data: doctorConflict } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("doctor_id", slot.doctor_id)
+    .in("status", ["scheduled", "confirmed"])
+    .lt("starts_at", endIso)
+    .gt("ends_at", startIso)
+    .limit(1);
+
+  if (doctorConflict && doctorConflict.length > 0) {
+    return { error: "El médico ya tiene otro paciente en ese horario." };
+  }
+
+  // Create appointment
   const { data: appt, error: apptErr } = await supabase
     .from("appointments")
     .insert({

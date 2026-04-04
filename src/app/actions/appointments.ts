@@ -40,6 +40,37 @@ export async function createAppointment(formData: FormData) {
   const start = new Date(startsAt);
   const end = new Date(start.getTime() + durationMin * 60_000);
 
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
+
+  // Check if patient already has appointment at this time
+  const { data: patientConflict } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("patient_id", patientId)
+    .in("status", ["scheduled", "confirmed"])
+    .lt("starts_at", endIso)
+    .gt("ends_at", startIso)
+    .limit(1);
+
+  if (patientConflict && patientConflict.length > 0) {
+    return { error: "Este paciente ya tiene una cita en ese horario." };
+  }
+
+  // Check if doctor already has another patient at this time
+  const { data: doctorConflict } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("doctor_id", doctorId)
+    .in("status", ["scheduled", "confirmed"])
+    .lt("starts_at", endIso)
+    .gt("ends_at", startIso)
+    .limit(1);
+
+  if (doctorConflict && doctorConflict.length > 0) {
+    return { error: "El médico ya tiene otro paciente en ese horario." };
+  }
+
   const { error } = await supabase.from("appointments").insert({
     tenant_id: currentUser.tenant_id,
     doctor_id: doctorId,
