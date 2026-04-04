@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function createAppointment(formData: FormData) {
   const doctorId = (formData.get("doctorId") as string | null)?.trim() ?? "";
@@ -21,10 +22,11 @@ export async function createAppointment(formData: FormData) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return { error: "No autenticado." };
 
-  const { data: currentUser } = await supabase
+  const admin = createAdminClient();
+
+  const { data: currentUser } = await admin
     .from("users")
     .select("tenant_id, role")
     .eq("id", user.id)
@@ -39,12 +41,11 @@ export async function createAppointment(formData: FormData) {
 
   const start = new Date(startsAt);
   const end = new Date(start.getTime() + durationMin * 60_000);
-
   const startIso = start.toISOString();
   const endIso = end.toISOString();
 
   // Check if patient already has appointment at this time
-  const { data: patientConflict } = await supabase
+  const { data: patientConflict } = await admin
     .from("appointments")
     .select("id")
     .eq("patient_id", patientId)
@@ -58,7 +59,7 @@ export async function createAppointment(formData: FormData) {
   }
 
   // Check if doctor already has another patient at this time
-  const { data: doctorConflict } = await supabase
+  const { data: doctorConflict } = await admin
     .from("appointments")
     .select("id")
     .eq("doctor_id", doctorId)
@@ -71,12 +72,12 @@ export async function createAppointment(formData: FormData) {
     return { error: "El médico ya tiene otro paciente en ese horario." };
   }
 
-  const { error } = await supabase.from("appointments").insert({
+  const { error } = await admin.from("appointments").insert({
     tenant_id: currentUser.tenant_id,
     doctor_id: doctorId,
     patient_id: patientId,
-    starts_at: start.toISOString(),
-    ends_at: end.toISOString(),
+    starts_at: startIso,
+    ends_at: endIso,
     notes: notes || null,
     status: "scheduled",
   });
@@ -96,10 +97,11 @@ export async function updateAppointmentStatus(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return { error: "No autenticado." };
 
-  const { error } = await supabase
+  const admin = createAdminClient();
+
+  const { error } = await admin
     .from("appointments")
     .update({ status })
     .eq("id", appointmentId);

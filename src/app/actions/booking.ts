@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function bookSlot(formData: FormData) {
   const slotId = ((formData.get("slotId") as string) ?? "").trim();
@@ -18,8 +19,10 @@ export async function bookSlot(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "No autenticado." };
 
+  const admin = createAdminClient();
+
   // Get slot details
-  const { data: slot } = await supabase
+  const { data: slot } = await admin
     .from("appointment_slots")
     .select("id, doctor_id, office_id, tenant_id, slot_date, start_time, end_time, status")
     .eq("id", slotId)
@@ -34,7 +37,7 @@ export async function bookSlot(formData: FormData) {
   const endIso = endDt.toISOString();
 
   // Check if patient already has appointment at this time
-  const { data: patientConflict } = await supabase
+  const { data: patientConflict } = await admin
     .from("appointments")
     .select("id")
     .eq("patient_id", patientId)
@@ -48,7 +51,7 @@ export async function bookSlot(formData: FormData) {
   }
 
   // Check if doctor already has another patient at this time
-  const { data: doctorConflict } = await supabase
+  const { data: doctorConflict } = await admin
     .from("appointments")
     .select("id")
     .eq("doctor_id", slot.doctor_id)
@@ -62,7 +65,7 @@ export async function bookSlot(formData: FormData) {
   }
 
   // Create appointment
-  const { data: appt, error: apptErr } = await supabase
+  const { data: appt, error: apptErr } = await admin
     .from("appointments")
     .insert({
       tenant_id: slot.tenant_id,
@@ -71,8 +74,8 @@ export async function bookSlot(formData: FormData) {
       office_id: slot.office_id,
       slot_id: slot.id,
       status: "scheduled",
-      starts_at: startDt.toISOString(),
-      ends_at: endDt.toISOString(),
+      starts_at: startIso,
+      ends_at: endIso,
       notes: notes || null,
     })
     .select("id")
@@ -81,7 +84,7 @@ export async function bookSlot(formData: FormData) {
   if (apptErr) return { error: apptErr.message };
 
   // Mark slot as booked
-  await supabase
+  await admin
     .from("appointment_slots")
     .update({ status: "booked", appointment_id: appt.id })
     .eq("id", slotId);
@@ -107,14 +110,16 @@ export async function addToWaitlist(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "No autenticado." };
 
-  const { data: currentUser } = await supabase
+  const admin = createAdminClient();
+
+  const { data: currentUser } = await admin
     .from("users")
     .select("tenant_id")
     .eq("id", user.id)
     .single();
   if (!currentUser?.tenant_id) return { error: "Sin tenant." };
 
-  const { error } = await supabase.from("waitlist").insert({
+  const { error } = await admin.from("waitlist").insert({
     tenant_id: currentUser.tenant_id,
     patient_id: patientId,
     doctor_id: doctorId,
@@ -130,7 +135,13 @@ export async function addToWaitlist(formData: FormData) {
 
 export async function cancelWaitlistItem(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado." };
+
+  const admin = createAdminClient();
+  const { error } = await admin
     .from("waitlist")
     .update({ status: "cancelled" })
     .eq("id", id);

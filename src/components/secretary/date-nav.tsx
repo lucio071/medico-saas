@@ -18,13 +18,16 @@ export function DateNav({ currentDate }: DateNavProps) {
     year: "numeric",
   }).format(d);
 
-  function navigate(offset: number) {
-    const next = new Date(d);
-    next.setDate(next.getDate() + offset);
-    const dateStr = next.toISOString().slice(0, 10);
+  function goToDate(dateStr: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("date", dateStr);
     router.push(`/secretary?${params.toString()}`);
+  }
+
+  function navigate(offset: number) {
+    const next = new Date(d);
+    next.setDate(next.getDate() + offset);
+    goToDate(next.toISOString().slice(0, 10));
   }
 
   function goToday() {
@@ -36,7 +39,7 @@ export function DateNav({ currentDate }: DateNavProps) {
   const isToday = currentDate === new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <button
         type="button"
         onClick={() => navigate(-1)}
@@ -47,11 +50,27 @@ export function DateNav({ currentDate }: DateNavProps) {
         </svg>
       </button>
 
-      <div className="text-center">
-        <p className="text-sm font-semibold capitalize text-zinc-900 dark:text-zinc-100">
-          {label}
-        </p>
-      </div>
+      <button
+        type="button"
+        onClick={() => {
+          const input = document.getElementById("date-picker") as HTMLInputElement | null;
+          input?.showPicker();
+        }}
+        className="text-sm font-semibold capitalize text-zinc-900 hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300"
+      >
+        {label}
+      </button>
+
+      <input
+        id="date-picker"
+        type="date"
+        value={currentDate}
+        onChange={(e) => {
+          if (e.target.value) goToDate(e.target.value);
+        }}
+        className="sr-only"
+        tabIndex={-1}
+      />
 
       <button
         type="button"
