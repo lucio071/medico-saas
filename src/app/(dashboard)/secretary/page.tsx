@@ -79,7 +79,7 @@ export default async function SecretaryPage() {
     id: string;
     starts_at: string;
     ends_at: string;
-    status: "scheduled" | "confirmed" | "cancelled" | "completed";
+    status: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show";
     notes: string | null;
     doctor_id: string;
     patient_id: string;
@@ -174,8 +174,9 @@ export default async function SecretaryPage() {
   const statusLabel: Record<string, string> = {
     scheduled: "Programada",
     confirmed: "Confirmada",
-    completed: "Completada",
+    attended: "Atendida",
     cancelled: "Cancelada",
+    no_show: "No asistió",
   };
 
   return (

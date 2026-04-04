@@ -9,6 +9,8 @@ export async function createPatient(formData: FormData) {
   const email = (formData.get("email") as string | null)?.trim() ?? "";
   const phone = (formData.get("phone") as string | null)?.trim() ?? "";
   const birthDate = (formData.get("birthDate") as string | null)?.trim() ?? "";
+  const bloodType = (formData.get("bloodType") as string | null)?.trim() ?? "";
+  const allergies = (formData.get("allergies") as string | null)?.trim() ?? "";
 
   if (!fullName || !email) {
     return { error: "Nombre y email son obligatorios." };
@@ -37,11 +39,10 @@ export async function createPatient(formData: FormData) {
   const tenantId = currentUser.tenant_id;
   const admin = createAdminClient();
 
-  // Create auth user for the patient via admin API
   const { data: authData, error: authError } =
     await admin.auth.admin.createUser({
       email,
-      password: crypto.randomUUID(),
+      password: "12345678",
       email_confirm: true,
       user_metadata: { full_name: fullName },
     });
@@ -71,6 +72,8 @@ export async function createPatient(formData: FormData) {
     user_id: patientUserId,
     birth_date: birthDate || null,
     phone: phone || null,
+    blood_type: bloodType || null,
+    allergies: allergies || null,
   });
 
   if (patientError) {

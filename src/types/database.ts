@@ -112,11 +112,60 @@ export type Database = {
           },
         ];
       };
+      offices: {
+        Row: {
+          id: string;
+          doctor_id: string;
+          tenant_id: string;
+          name: string;
+          address: string | null;
+          phone: string | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          doctor_id: string;
+          tenant_id: string;
+          name: string;
+          address?: string | null;
+          phone?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          doctor_id?: string;
+          tenant_id?: string;
+          name?: string;
+          address?: string | null;
+          phone?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "offices_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "offices_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       doctor_schedules: {
         Row: {
           id: string;
           tenant_id: string;
           doctor_id: string;
+          office_id: string | null;
           day_of_week: number;
           start_time: string;
           end_time: string;
@@ -127,6 +176,7 @@ export type Database = {
           id?: string;
           tenant_id: string;
           doctor_id: string;
+          office_id?: string | null;
           day_of_week: number;
           start_time: string;
           end_time: string;
@@ -137,6 +187,7 @@ export type Database = {
           id?: string;
           tenant_id?: string;
           doctor_id?: string;
+          office_id?: string | null;
           day_of_week?: number;
           start_time?: string;
           end_time?: string;
@@ -151,6 +202,13 @@ export type Database = {
             referencedRelation: "doctors";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "doctor_schedules_office_id_fkey";
+            columns: ["office_id"];
+            isOneToOne: false;
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
         ];
       };
       patients: {
@@ -160,6 +218,8 @@ export type Database = {
           user_id: string;
           birth_date: string | null;
           phone: string | null;
+          blood_type: string | null;
+          allergies: string | null;
           emergency_contact: string | null;
           created_at: string;
         };
@@ -169,6 +229,8 @@ export type Database = {
           user_id: string;
           birth_date?: string | null;
           phone?: string | null;
+          blood_type?: string | null;
+          allergies?: string | null;
           emergency_contact?: string | null;
           created_at?: string;
         };
@@ -178,6 +240,8 @@ export type Database = {
           user_id?: string;
           birth_date?: string | null;
           phone?: string | null;
+          blood_type?: string | null;
+          allergies?: string | null;
           emergency_contact?: string | null;
           created_at?: string;
         };
@@ -191,13 +255,76 @@ export type Database = {
           },
         ];
       };
+      appointment_slots: {
+        Row: {
+          id: string;
+          doctor_id: string;
+          office_id: string;
+          tenant_id: string;
+          slot_date: string;
+          start_time: string;
+          end_time: string;
+          status: "available" | "booked" | "blocked";
+          appointment_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          doctor_id: string;
+          office_id: string;
+          tenant_id: string;
+          slot_date: string;
+          start_time: string;
+          end_time: string;
+          status?: "available" | "booked" | "blocked";
+          appointment_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          doctor_id?: string;
+          office_id?: string;
+          tenant_id?: string;
+          slot_date?: string;
+          start_time?: string;
+          end_time?: string;
+          status?: "available" | "booked" | "blocked";
+          appointment_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "appointment_slots_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointment_slots_office_id_fkey";
+            columns: ["office_id"];
+            isOneToOne: false;
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointment_slots_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       appointments: {
         Row: {
           id: string;
           tenant_id: string;
           doctor_id: string;
           patient_id: string;
-          status: "scheduled" | "confirmed" | "cancelled" | "completed";
+          office_id: string | null;
+          slot_id: string | null;
+          status: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show";
           starts_at: string;
           ends_at: string;
           notes: string | null;
@@ -208,7 +335,9 @@ export type Database = {
           tenant_id: string;
           doctor_id: string;
           patient_id: string;
-          status?: "scheduled" | "confirmed" | "cancelled" | "completed";
+          office_id?: string | null;
+          slot_id?: string | null;
+          status?: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show";
           starts_at: string;
           ends_at: string;
           notes?: string | null;
@@ -219,7 +348,9 @@ export type Database = {
           tenant_id?: string;
           doctor_id?: string;
           patient_id?: string;
-          status?: "scheduled" | "confirmed" | "cancelled" | "completed";
+          office_id?: string | null;
+          slot_id?: string | null;
+          status?: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show";
           starts_at?: string;
           ends_at?: string;
           notes?: string | null;
@@ -238,6 +369,20 @@ export type Database = {
             columns: ["patient_id"];
             isOneToOne: false;
             referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_office_id_fkey";
+            columns: ["office_id"];
+            isOneToOne: false;
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_slot_id_fkey";
+            columns: ["slot_id"];
+            isOneToOne: false;
+            referencedRelation: "appointment_slots";
             referencedColumns: ["id"];
           },
         ];

@@ -59,7 +59,7 @@ export async function createAppointment(formData: FormData) {
 
 export async function updateAppointmentStatus(
   appointmentId: string,
-  status: "scheduled" | "confirmed" | "cancelled" | "completed",
+  status: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show",
 ) {
   const supabase = await createClient();
   const {

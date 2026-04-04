@@ -1,12 +1,14 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LogoutButton } from "@/components/auth/logout-button";
 import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/types/database";
-
-type AppointmentRow = Database["public"]["Tables"]["appointments"]["Row"];
+import { LogoutButton } from "@/components/auth/logout-button";
+import { DoctorTabs } from "@/components/doctor/doctor-tabs";
+import { KanbanBoard } from "@/components/doctor/kanban-board";
+import { PatientsList } from "@/components/doctor/patients-list";
+import { OfficesList } from "@/components/doctor/offices-list";
+import { SchedulesManager } from "@/components/doctor/schedules-manager";
+import { PrescriptionTab } from "@/components/doctor/prescription-tab";
 
 function getTodayBoundsIso() {
   const now = new Date();
@@ -15,13 +17,6 @@ function getTodayBoundsIso() {
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
   return { start: start.toISOString(), end: end.toISOString() };
-}
-
-function formatTime(iso: string) {
-  return new Intl.DateTimeFormat("es", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
 }
 
 function formatTodayHeading() {
@@ -33,6 +28,17 @@ function formatTodayHeading() {
   }).format(new Date());
 }
 
+function formatApptLabel(startsAt: string, patientName: string): string {
+  const dt = new Intl.DateTimeFormat("es", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(startsAt));
+  return `${dt} — ${patientName}`;
+}
+
 export default async function DoctorPage() {
   const user = await requireAuth();
   const role = await getCurrentUserRole();
@@ -40,14 +46,16 @@ export default async function DoctorPage() {
 
   const supabase = await createClient();
 
+  // --- Profile ---
   const { data: profile } = await supabase
     .from("users")
-    .select("full_name, email")
+    .select("full_name, email, tenant_id")
     .eq("id", user.id)
     .single();
 
   const displayName =
     profile?.full_name?.trim() || profile?.email || user.email || "Médico";
+  const tenantId = profile?.tenant_id ?? null;
 
   const { data: doctorRow } = await supabase
     .from("doctors")
@@ -58,150 +66,297 @@ export default async function DoctorPage() {
   const specialty = doctorRow?.specialty?.trim() || null;
   const doctorId = doctorRow?.id ?? null;
 
-  let todayAppointments: AppointmentRow[] = [];
-  const patientNames = new Map<string, string>();
+  // ================================================================
+  // TAB 1: Kanban — Today's appointments
+  // ================================================================
+  type KanbanCard = {
+    id: string;
+    startsAt: string;
+    patientName: string;
+    officeName: string;
+    notes: string | null;
+    status: "scheduled" | "confirmed" | "attended" | "cancelled" | "no_show";
+  };
+
+  let kanbanCards: KanbanCard[] = [];
 
   if (doctorId) {
     const { start, end } = getTodayBoundsIso();
 
     const { data: appts } = await supabase
       .from("appointments")
-      .select("*")
+      .select("id, starts_at, status, notes, patient_id, office_id")
       .eq("doctor_id", doctorId)
       .gte("starts_at", start)
       .lte("starts_at", end)
-      .neq("status", "cancelled")
       .order("starts_at", { ascending: true });
 
-    todayAppointments = appts ?? [];
+    const allAppts = appts ?? [];
 
-    const patientIds = [...new Set(todayAppointments.map((a) => a.patient_id))];
+    // Resolve patient names
+    const patientIds = [...new Set(allAppts.map((a) => a.patient_id))];
+    const patientNameMap = new Map<string, string>();
     if (patientIds.length > 0) {
-      const { data: patients } = await supabase
+      const { data: pRows } = await supabase
         .from("patients")
         .select("id, user_id")
         .in("id", patientIds);
-
-      const userIds = [...new Set((patients ?? []).map((p) => p.user_id))];
-      const { data: patientUsers } =
-        userIds.length > 0
-          ? await supabase
-              .from("users")
-              .select("id, full_name, email")
-              .in("id", userIds)
-          : { data: [] as { id: string; full_name: string | null; email: string }[] };
-
-      const userIdToLabel = new Map(
-        (patientUsers ?? []).map((u) => [
-          u.id,
-          u.full_name?.trim() || u.email || "Paciente",
-        ]),
-      );
-
-      for (const p of patients ?? []) {
-        patientNames.set(
-          p.id,
-          userIdToLabel.get(p.user_id) ?? "Paciente",
+      const uIds = [...new Set((pRows ?? []).map((p) => p.user_id))];
+      if (uIds.length > 0) {
+        const { data: uRows } = await supabase
+          .from("users")
+          .select("id, full_name, email")
+          .in("id", uIds);
+        const uidMap = new Map(
+          (uRows ?? []).map((u) => [u.id, u.full_name?.trim() || u.email]),
         );
+        for (const p of pRows ?? []) {
+          patientNameMap.set(p.id, uidMap.get(p.user_id) ?? "Paciente");
+        }
       }
     }
+
+    // Resolve office names
+    const officeIds = [
+      ...new Set(allAppts.map((a) => a.office_id).filter(Boolean) as string[]),
+    ];
+    const officeNameMap = new Map<string, string>();
+    if (officeIds.length > 0) {
+      const { data: oRows } = await supabase
+        .from("offices")
+        .select("id, name")
+        .in("id", officeIds);
+      for (const o of oRows ?? []) {
+        officeNameMap.set(o.id, o.name);
+      }
+    }
+
+    kanbanCards = allAppts.map((a) => ({
+      id: a.id,
+      startsAt: a.starts_at,
+      patientName: patientNameMap.get(a.patient_id) ?? "Paciente",
+      officeName: a.office_id ? (officeNameMap.get(a.office_id) ?? "") : "",
+      notes: a.notes,
+      status: a.status,
+    }));
   }
 
+  // ================================================================
+  // TAB 2: Patients
+  // ================================================================
+  type PatientItem = {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string | null;
+    birthDate: string | null;
+    bloodType: string | null;
+    allergies: string | null;
+  };
+
+  let patientItems: PatientItem[] = [];
+  if (tenantId) {
+    const { data } = await supabase
+      .from("patients")
+      .select("id, user_id, phone, birth_date, blood_type, allergies, users(full_name, email)")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    type PRow = {
+      id: string;
+      user_id: string;
+      phone: string | null;
+      birth_date: string | null;
+      blood_type: string | null;
+      allergies: string | null;
+      users: { full_name: string; email: string } | null;
+    };
+
+    patientItems = ((data ?? []) as unknown as PRow[]).map((p) => ({
+      id: p.id,
+      fullName: p.users?.full_name?.trim() || "Sin nombre",
+      email: p.users?.email || "",
+      phone: p.phone,
+      birthDate: p.birth_date,
+      bloodType: p.blood_type,
+      allergies: p.allergies,
+    }));
+  }
+
+  // ================================================================
+  // TAB 3: Offices
+  // ================================================================
+  type OfficeItem = {
+    id: string;
+    name: string;
+    address: string | null;
+    phone: string | null;
+    isActive: boolean;
+  };
+
+  let officeItems: OfficeItem[] = [];
+  if (doctorId) {
+    const { data } = await supabase
+      .from("offices")
+      .select("id, name, address, phone, is_active")
+      .eq("doctor_id", doctorId)
+      .order("created_at", { ascending: false });
+
+    officeItems = (data ?? []).map((o) => ({
+      id: o.id,
+      name: o.name,
+      address: o.address,
+      phone: o.phone,
+      isActive: o.is_active,
+    }));
+  }
+
+  // ================================================================
+  // TAB 4: Schedules
+  // ================================================================
+  type ScheduleItem = {
+    id: string;
+    officeId: string | null;
+    officeName: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+  };
+
+  let scheduleItems: ScheduleItem[] = [];
+  if (doctorId) {
+    const { data } = await supabase
+      .from("doctor_schedules")
+      .select("id, office_id, day_of_week, start_time, end_time")
+      .eq("doctor_id", doctorId)
+      .order("day_of_week", { ascending: true });
+
+    const officeMap = new Map(officeItems.map((o) => [o.id, o.name]));
+
+    scheduleItems = (data ?? []).map((s) => ({
+      id: s.id,
+      officeId: s.office_id,
+      officeName: s.office_id ? (officeMap.get(s.office_id) ?? "Consultorio") : "Sin consultorio",
+      dayOfWeek: s.day_of_week,
+      startTime: s.start_time,
+      endTime: s.end_time,
+    }));
+  }
+
+  // ================================================================
+  // TAB 5: Prescription — need appointments + patient list for selects
+  // ================================================================
+  type RxAppt = { id: string; label: string; patientId: string };
+  let rxAppointments: RxAppt[] = [];
+
+  if (doctorId) {
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+    const until = new Date();
+    until.setDate(until.getDate() + 30);
+
+    const { data: appts } = await supabase
+      .from("appointments")
+      .select("id, starts_at, patient_id")
+      .eq("doctor_id", doctorId)
+      .neq("status", "cancelled")
+      .gte("starts_at", since.toISOString())
+      .lte("starts_at", until.toISOString())
+      .order("starts_at", { ascending: false });
+
+    rxAppointments = (appts ?? []).map((a) => {
+      const pName =
+        patientItems.find(
+          (p) => p.id === a.patient_id,
+        )?.fullName ?? "Paciente";
+      return {
+        id: a.id,
+        label: formatApptLabel(a.starts_at, pName),
+        patientId: a.patient_id,
+      };
+    });
+  }
+
+  const rxPatients = patientItems.map((p) => ({
+    id: p.id,
+    name: p.fullName,
+  }));
+
+  // ================================================================
+  // Build tabs
+  // ================================================================
+  const tabs = [
+    {
+      id: "agenda",
+      label: "Agenda de hoy",
+      content: <KanbanBoard appointments={kanbanCards} />,
+    },
+    {
+      id: "pacientes",
+      label: "Pacientes",
+      content: <PatientsList patients={patientItems} />,
+    },
+    {
+      id: "consultorios",
+      label: "Consultorios",
+      content: <OfficesList offices={officeItems} />,
+    },
+    {
+      id: "horarios",
+      label: "Horarios",
+      content: (
+        <SchedulesManager
+          offices={officeItems.map((o) => ({ id: o.id, name: o.name }))}
+          schedules={scheduleItems}
+        />
+      ),
+    },
+    {
+      id: "receta",
+      label: "Nueva receta",
+      content: (
+        <PrescriptionTab
+          patients={rxPatients}
+          appointments={rxAppointments}
+        />
+      ),
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
               Panel del médico
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               {displayName}
             </h1>
             {specialty ? (
-              <p className="mt-2 inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              <p className="mt-1 inline-flex rounded-full bg-zinc-100 px-3 py-0.5 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                 {specialty}
               </p>
-            ) : (
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Especialidad no indicada
-              </p>
-            )}
+            ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/doctor/prescriptions/new"
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
-            >
-              Nueva receta
-            </Link>
+          <div className="flex items-center gap-3">
+            <p className="text-sm capitalize text-zinc-500 dark:text-zinc-400">
+              {formatTodayHeading()}
+            </p>
             <LogoutButton />
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-6">
         {!doctorId ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            No hay un perfil de médico vinculado a tu cuenta. Cuando exista en el
-            sistema, verás aquí tu agenda y especialidad.
+            No hay un perfil de médico vinculado a tu cuenta.
           </div>
         ) : (
-          <section>
-            <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                Citas de hoy
-              </h2>
-              <p className="text-sm capitalize text-slate-500 dark:text-slate-400">
-                {formatTodayHeading()}
-              </p>
-            </div>
-
-            {todayAppointments.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  No tienes citas programadas para hoy.
-                </p>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {todayAppointments.map((a) => (
-                  <li
-                    key={a.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                          <span className="text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-                            {formatTime(a.starts_at)}
-                          </span>
-                          <span className="text-base font-medium text-slate-800 dark:text-slate-200">
-                            {patientNames.get(a.patient_id) ?? "Paciente"}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                          <span className="font-medium text-slate-700 dark:text-slate-300">
-                            Motivo:{" "}
-                          </span>
-                          {a.notes?.trim() || "Sin motivo registrado."}
-                        </p>
-                      </div>
-                      <span className="shrink-0 self-start rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        {a.status === "scheduled"
-                          ? "Programada"
-                          : a.status === "confirmed"
-                            ? "Confirmada"
-                            : a.status === "completed"
-                              ? "Completada"
-                              : a.status}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <DoctorTabs tabs={tabs} />
         )}
       </main>
     </div>
