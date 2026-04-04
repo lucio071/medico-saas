@@ -163,7 +163,6 @@ export type Database = {
       doctor_schedules: {
         Row: {
           id: string;
-          tenant_id: string;
           doctor_id: string;
           office_id: string | null;
           day_of_week: number;
@@ -174,7 +173,6 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          tenant_id: string;
           doctor_id: string;
           office_id?: string | null;
           day_of_week: number;
@@ -185,7 +183,6 @@ export type Database = {
         };
         Update: {
           id?: string;
-          tenant_id?: string;
           doctor_id?: string;
           office_id?: string | null;
           day_of_week?: number;

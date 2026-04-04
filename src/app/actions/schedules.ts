@@ -53,7 +53,6 @@ export async function upsertSchedule(formData: FormData) {
     if (error) return { error: error.message };
   } else {
     const { error } = await supabase.from("doctor_schedules").insert({
-      tenant_id: currentUser.tenant_id,
       doctor_id: doctor.id,
       office_id: officeId,
       day_of_week: dayOfWeek,
