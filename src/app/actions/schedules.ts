@@ -52,6 +52,24 @@ export async function upsertSchedule(formData: FormData) {
       .eq("id", scheduleId);
     if (error) return { error: error.message };
   } else {
+    // Check for overlapping schedules on the same day
+    const { data: existing } = await supabase
+      .from("doctor_schedules")
+      .select("id, start_time, end_time")
+      .eq("doctor_id", doctor.id)
+      .eq("day_of_week", dayOfWeek);
+
+    const overlaps = (existing ?? []).some(
+      (s) => startTime < s.end_time && endTime > s.start_time,
+    );
+
+    if (overlaps) {
+      return {
+        error:
+          "El médico ya tiene un horario en ese día y horario en otro consultorio.",
+      };
+    }
+
     const { error } = await supabase.from("doctor_schedules").insert({
       doctor_id: doctor.id,
       office_id: officeId,
