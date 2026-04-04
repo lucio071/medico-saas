@@ -165,29 +165,28 @@ export default async function DoctorPage() {
 
   let patientItems: PatientItem[] = [];
   if (tenantId) {
+    // Query patients (without join — RLS can block the users join)
     const { data } = await supabase
       .from("patients")
-      .select("id, user_id, phone, birth_date, blood_type, allergies, emergency_contact, department_id, city_id, address, neighborhood, users(full_name, email, is_active)")
+      .select("id, user_id, phone, birth_date, blood_type, allergies, emergency_contact, department_id, city_id, address, neighborhood")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(200);
 
-    type PRow = {
-      id: string;
-      user_id: string;
-      phone: string | null;
-      birth_date: string | null;
-      blood_type: string | null;
-      allergies: string[] | null;
-      emergency_contact: string | null;
-      department_id: number | null;
-      city_id: number | null;
-      address: string | null;
-      neighborhood: string | null;
-      users: { full_name: string; email: string; is_active: boolean } | null;
-    };
+    const rows = data ?? [];
 
-    const rows = (data ?? []) as unknown as PRow[];
+    // Resolve user info separately (same session, direct query)
+    const userIds = [...new Set(rows.map((p) => p.user_id))];
+    const userMap = new Map<string, { full_name: string; email: string; is_active: boolean }>();
+    if (userIds.length > 0) {
+      const { data: uRows } = await supabase
+        .from("users")
+        .select("id, full_name, email, is_active")
+        .in("id", userIds);
+      for (const u of uRows ?? []) {
+        userMap.set(u.id, { full_name: u.full_name, email: u.email, is_active: u.is_active });
+      }
+    }
 
     // Resolve department & city names
     const deptIds = [...new Set(rows.map((p) => p.department_id).filter(Boolean))] as number[];
@@ -211,24 +210,27 @@ export default async function DoctorPage() {
       for (const c of cts ?? []) cityNameMap.set(c.id, c.name);
     }
 
-    patientItems = rows.map((p) => ({
-      id: p.id,
-      userId: p.user_id,
-      fullName: p.users?.full_name?.trim() || "Sin nombre",
-      email: p.users?.email || "",
-      phone: p.phone,
-      birthDate: p.birth_date,
-      bloodType: p.blood_type,
-      allergies: p.allergies,
-      emergencyContact: p.emergency_contact,
-      departmentId: p.department_id,
-      cityId: p.city_id,
-      departmentName: p.department_id ? (deptNameMap.get(p.department_id) ?? null) : null,
-      cityName: p.city_id ? (cityNameMap.get(p.city_id) ?? null) : null,
-      address: p.address,
-      neighborhood: p.neighborhood,
-      isActive: p.users?.is_active ?? true,
-    }));
+    patientItems = rows.map((p) => {
+      const u = userMap.get(p.user_id);
+      return {
+        id: p.id,
+        userId: p.user_id,
+        fullName: u?.full_name?.trim() || "Sin nombre",
+        email: u?.email || "",
+        phone: p.phone,
+        birthDate: p.birth_date,
+        bloodType: p.blood_type,
+        allergies: p.allergies,
+        emergencyContact: p.emergency_contact,
+        departmentId: p.department_id,
+        cityId: p.city_id,
+        departmentName: p.department_id ? (deptNameMap.get(p.department_id) ?? null) : null,
+        cityName: p.city_id ? (cityNameMap.get(p.city_id) ?? null) : null,
+        address: p.address,
+        neighborhood: p.neighborhood,
+        isActive: u?.is_active ?? true,
+      };
+    });
   }
 
   // Departments list for the patient form

@@ -54,24 +54,36 @@ export default async function SecretaryPage() {
   type DoctorWithUser = {
     id: string;
     user_id: string;
-    users: { full_name: string | null; email: string } | null;
+    userName: string;
   };
 
   let doctors: DoctorWithUser[] = [];
   if (tenantId) {
-    const { data } = await supabase
+    const { data: docRows } = await supabase
       .from("doctors")
-      .select("id, user_id, users(full_name, email)")
+      .select("id, user_id")
       .eq("tenant_id", tenantId);
-    doctors = (data ?? []) as unknown as DoctorWithUser[];
+
+    if (docRows && docRows.length > 0) {
+      const docUserIds = [...new Set(docRows.map((d) => d.user_id))];
+      const { data: docUsers } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .in("id", docUserIds);
+      const docUserMap = new Map(
+        (docUsers ?? []).map((u) => [u.id, u.full_name?.trim() || u.email || "Médico"]),
+      );
+      doctors = docRows.map((d) => ({
+        id: d.id,
+        user_id: d.user_id,
+        userName: docUserMap.get(d.user_id) ?? "Médico",
+      }));
+    }
   }
 
   const doctorOptions = doctors.map((d) => ({
     id: d.id,
-    name:
-      d.users?.full_name?.trim() ||
-      d.users?.email ||
-      "Médico",
+    name: d.userName,
   }));
 
   // --- Today's appointments ---
@@ -134,10 +146,7 @@ export default async function SecretaryPage() {
 
     // Resolve doctor names from already-fetched doctors
     for (const d of doctors) {
-      doctorNames.set(
-        d.id,
-        d.users?.full_name?.trim() || d.users?.email || "Médico",
-      );
+      doctorNames.set(d.id, d.userName);
     }
   }
 
@@ -146,29 +155,41 @@ export default async function SecretaryPage() {
     id: string;
     user_id: string;
     phone: string | null;
-    birth_date: string | null;
-  };
-  type PatientWithUser = PatientRow & {
-    users: { full_name: string | null; email: string } | null;
+    userName: string;
+    userEmail: string;
   };
 
-  let patients: PatientWithUser[] = [];
+  let patients: PatientRow[] = [];
   if (tenantId) {
-    const { data } = await supabase
+    const { data: patRows } = await supabase
       .from("patients")
-      .select("id, user_id, phone, birth_date, users(full_name, email)")
+      .select("id, user_id, phone")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(100);
-    patients = (data ?? []) as unknown as PatientWithUser[];
+
+    if (patRows && patRows.length > 0) {
+      const patUserIds = [...new Set(patRows.map((p) => p.user_id))];
+      const { data: patUsers } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .in("id", patUserIds);
+      const patUserMap = new Map(
+        (patUsers ?? []).map((u) => [u.id, { name: u.full_name?.trim() || "Paciente", email: u.email }]),
+      );
+      patients = patRows.map((p) => ({
+        id: p.id,
+        user_id: p.user_id,
+        phone: p.phone,
+        userName: patUserMap.get(p.user_id)?.name ?? "Paciente",
+        userEmail: patUserMap.get(p.user_id)?.email ?? "",
+      }));
+    }
   }
 
   const patientOptions = patients.map((p) => ({
     id: p.id,
-    name:
-      p.users?.full_name?.trim() ||
-      p.users?.email ||
-      "Paciente",
+    name: p.userName,
   }));
 
   const statusLabel: Record<string, string> = {
@@ -308,10 +329,10 @@ export default async function SecretaryPage() {
                       {patients.map((p) => (
                         <tr key={p.id}>
                           <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                            {p.users?.full_name?.trim() || "—"}
+                            {p.userName}
                           </td>
                           <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                            {p.users?.email || "—"}
+                            {p.userEmail || "—"}
                           </td>
                           <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                             {p.phone || "—"}
