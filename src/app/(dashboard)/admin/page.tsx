@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireAuth, getCurrentUserRole } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminReadClient } from "@/lib/supabase/admin-read";
 import { LogoutButton } from "@/components/auth/logout-button";
 
 function formatDate(iso: string) {
@@ -18,8 +19,9 @@ export default async function AdminPage() {
   if (role !== "admin") redirect(getRolePath(role));
 
   const supabase = await createClient();
+  const adminDb = createAdminReadClient();
 
-  const { data: adminUser } = await supabase
+  const { data: adminUser } = await adminDb
     .from("users")
     .select("full_name, email")
     .eq("id", user.id)
@@ -100,7 +102,7 @@ export default async function AdminPage() {
   }
 
   // --- Recent users ---
-  const { data: recentUsers } = await supabase
+  const { data: recentUsers } = await adminDb
     .from("users")
     .select("id, full_name, email, role, created_at, is_active")
     .order("created_at", { ascending: false })

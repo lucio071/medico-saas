@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminReadClient } from "@/lib/supabase/admin-read";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { SecretariesList } from "@/components/doctor/secretaries-list";
 import { DoctorTabs } from "@/components/doctor/doctor-tabs";
@@ -46,9 +47,10 @@ export default async function DoctorPage() {
   if (role !== "doctor") redirect(getRolePath(role));
 
   const supabase = await createClient();
+  const adminDb = createAdminReadClient();
 
   // --- Profile ---
-  const { data: profile } = await supabase
+  const { data: profile } = await adminDb
     .from("users")
     .select("full_name, email, tenant_id")
     .eq("id", user.id)
@@ -104,7 +106,7 @@ export default async function DoctorPage() {
         .in("id", patientIds);
       const uIds = [...new Set((pRows ?? []).map((p) => p.user_id))];
       if (uIds.length > 0) {
-        const { data: uRows } = await supabase
+        const { data: uRows } = await adminDb
           .from("users")
           .select("id, full_name, email")
           .in("id", uIds);
@@ -180,7 +182,7 @@ export default async function DoctorPage() {
     const userIds = [...new Set(rows.map((p) => p.user_id))];
     const userMap = new Map<string, { full_name: string; email: string; is_active: boolean }>();
     if (userIds.length > 0) {
-      const { data: uRows } = await supabase
+      const { data: uRows } = await adminDb
         .from("users")
         .select("id, full_name, email, is_active")
         .in("id", userIds);
@@ -361,7 +363,7 @@ export default async function DoctorPage() {
     const secIds = (rels ?? []).map((r) => r.secretary_id);
 
     if (secIds.length > 0) {
-      const { data: secRows } = await supabase
+      const { data: secRows } = await adminDb
         .from("users")
         .select("id, full_name, email, phone, is_active")
         .in("id", secIds);

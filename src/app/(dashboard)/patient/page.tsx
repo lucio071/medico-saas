@@ -2,6 +2,7 @@ import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminReadClient } from "@/lib/supabase/admin-read";
 import type { Database, Json } from "@/types/database";
 import { LogoutButton } from "@/components/auth/logout-button";
 
@@ -41,8 +42,9 @@ export default async function PatientPage() {
   const role = await getCurrentUserRole();
   if (role !== "patient") redirect(getRolePath(role));
   const supabase = await createClient();
+  const adminDb = createAdminReadClient();
 
-  const { data: profile } = await supabase
+  const { data: profile } = await adminDb
     .from("users")
     .select("full_name, email")
     .eq("id", user.id)

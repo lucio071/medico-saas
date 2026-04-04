@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminReadClient } from "@/lib/supabase/admin-read";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { DoctorTabs } from "@/components/doctor/doctor-tabs";
 import { PatientsList } from "@/components/doctor/patients-list";
@@ -22,10 +23,11 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
   if (role !== "secretary") redirect(getRolePath(role));
 
   const supabase = await createClient();
+  const adminDb = createAdminReadClient();
   const resolvedParams = await searchParams;
 
   // ─── Secretary profile ───
-  const { data: secUser } = await supabase
+  const { data: secUser } = await adminDb
     .from("users")
     .select("full_name, email, tenant_id")
     .eq("id", user.id)
@@ -135,7 +137,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     const { data: pRows } = await supabase.from("patients").select("id, user_id, phone").in("id", patientIdsFromAppts);
     const uIds = [...new Set((pRows ?? []).map((p) => p.user_id))];
     if (uIds.length > 0) {
-      const { data: uRows } = await supabase.from("users").select("id, full_name, email").in("id", uIds);
+      const { data: uRows } = await adminDb.from("users").select("id, full_name, email").in("id", uIds);
       const uidMap = new Map((uRows ?? []).map((u) => [u.id, u.full_name?.trim() || u.email]));
       for (const p of pRows ?? []) {
         patientNameMap.set(p.id, uidMap.get(p.user_id) ?? "Paciente");
@@ -211,7 +213,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     const userIds = [...new Set(rows.map((p) => p.user_id))];
     const userMap = new Map<string, { full_name: string; email: string; is_active: boolean }>();
     if (userIds.length > 0) {
-      const { data: uRows } = await supabase.from("users").select("id, full_name, email, is_active").in("id", userIds);
+      const { data: uRows } = await adminDb.from("users").select("id, full_name, email, is_active").in("id", userIds);
       for (const u of uRows ?? []) userMap.set(u.id, { full_name: u.full_name, email: u.email, is_active: u.is_active });
     }
 
@@ -300,7 +302,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
       const { data: pRows } = await supabase.from("patients").select("id, user_id, phone").in("id", wlPatIds);
       const wlUids = [...new Set((pRows ?? []).map((p) => p.user_id))];
       if (wlUids.length > 0) {
-        const { data: uRows } = await supabase.from("users").select("id, full_name").in("id", wlUids);
+        const { data: uRows } = await adminDb.from("users").select("id, full_name").in("id", wlUids);
         const uidMap = new Map((uRows ?? []).map((u) => [u.id, u.full_name?.trim() || "Paciente"]));
         for (const p of pRows ?? []) {
           wlPatNameMap.set(p.id, uidMap.get(p.user_id) ?? "Paciente");
