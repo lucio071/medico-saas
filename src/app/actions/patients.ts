@@ -11,6 +11,12 @@ export async function createPatient(formData: FormData) {
   const birthDate = (formData.get("birthDate") as string | null)?.trim() ?? "";
   const bloodType = (formData.get("bloodType") as string | null)?.trim() ?? "";
   const allergies = (formData.get("allergies") as string | null)?.trim() ?? "";
+  const departmentIdRaw = (formData.get("departmentId") as string | null)?.trim() ?? "";
+  const cityIdRaw = (formData.get("cityId") as string | null)?.trim() ?? "";
+  const address = (formData.get("address") as string | null)?.trim() ?? "";
+  const neighborhood = (formData.get("neighborhood") as string | null)?.trim() ?? "";
+  const departmentId = departmentIdRaw ? parseInt(departmentIdRaw, 10) : null;
+  const cityId = cityIdRaw ? parseInt(cityIdRaw, 10) : null;
 
   if (!fullName || !email) {
     return { error: "Nombre y email son obligatorios." };
@@ -74,6 +80,10 @@ export async function createPatient(formData: FormData) {
     phone: phone || null,
     blood_type: bloodType || null,
     allergies: allergies || null,
+    department_id: departmentId,
+    city_id: cityId,
+    address: address || null,
+    neighborhood: neighborhood || null,
   });
 
   if (patientError) {

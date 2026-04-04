@@ -9,6 +9,47 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      departments: {
+        Row: {
+          id: number;
+          name: string;
+        };
+        Insert: {
+          id?: number;
+          name: string;
+        };
+        Update: {
+          id?: number;
+          name?: string;
+        };
+        Relationships: [];
+      };
+      cities: {
+        Row: {
+          id: number;
+          department_id: number;
+          name: string;
+        };
+        Insert: {
+          id?: number;
+          department_id: number;
+          name: string;
+        };
+        Update: {
+          id?: number;
+          department_id?: number;
+          name?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "cities_department_id_fkey";
+            columns: ["department_id"];
+            isOneToOne: false;
+            referencedRelation: "departments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenants: {
         Row: {
           id: string;
@@ -84,6 +125,8 @@ export type Database = {
           user_id: string;
           specialty: string | null;
           license_number: string | null;
+          department_id: number | null;
+          city_id: number | null;
           created_at: string;
         };
         Insert: {
@@ -92,6 +135,8 @@ export type Database = {
           user_id: string;
           specialty?: string | null;
           license_number?: string | null;
+          department_id?: number | null;
+          city_id?: number | null;
           created_at?: string;
         };
         Update: {
@@ -100,6 +145,8 @@ export type Database = {
           user_id?: string;
           specialty?: string | null;
           license_number?: string | null;
+          department_id?: number | null;
+          city_id?: number | null;
           created_at?: string;
         };
         Relationships: [
@@ -218,6 +265,10 @@ export type Database = {
           blood_type: string | null;
           allergies: string | null;
           emergency_contact: string | null;
+          department_id: number | null;
+          city_id: number | null;
+          address: string | null;
+          neighborhood: string | null;
           created_at: string;
         };
         Insert: {
@@ -229,6 +280,10 @@ export type Database = {
           blood_type?: string | null;
           allergies?: string | null;
           emergency_contact?: string | null;
+          department_id?: number | null;
+          city_id?: number | null;
+          address?: string | null;
+          neighborhood?: string | null;
           created_at?: string;
         };
         Update: {
@@ -240,6 +295,10 @@ export type Database = {
           blood_type?: string | null;
           allergies?: string | null;
           emergency_contact?: string | null;
+          department_id?: number | null;
+          city_id?: number | null;
+          address?: string | null;
+          neighborhood?: string | null;
           created_at?: string;
         };
         Relationships: [

@@ -1,7 +1,17 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createPatient } from "@/app/actions/patients";
+
+interface Department {
+  id: number;
+  name: string;
+}
+
+interface City {
+  id: number;
+  name: string;
+}
 
 interface Patient {
   id: string;
@@ -11,17 +21,45 @@ interface Patient {
   birthDate: string | null;
   bloodType: string | null;
   allergies: string | null;
+  departmentName: string | null;
+  cityName: string | null;
 }
 
 interface PatientsListProps {
   patients: Patient[];
+  departments: Department[];
 }
 
-export function PatientsList({ patients }: PatientsListProps) {
+export function PatientsList({ patients, departments }: PatientsListProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+
+  const [selectedDept, setSelectedDept] = useState("");
+  const [cities, setCities] = useState<City[]>([]);
+  const [loadingCities, setLoadingCities] = useState(false);
+
+  const fetchCities = useCallback(async (deptId: string) => {
+    if (!deptId) {
+      setCities([]);
+      return;
+    }
+    setLoadingCities(true);
+    try {
+      const res = await fetch(`/api/cities?department_id=${deptId}`);
+      const data: City[] = await res.json();
+      setCities(data);
+    } catch {
+      setCities([]);
+    } finally {
+      setLoadingCities(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCities(selectedDept);
+  }, [selectedDept, fetchCities]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,6 +71,8 @@ export function PatientsList({ patients }: PatientsListProps) {
         setError(res.error);
       } else {
         formRef.current?.reset();
+        setSelectedDept("");
+        setCities([]);
         setOpen(false);
       }
     });
@@ -74,7 +114,7 @@ export function PatientsList({ patients }: PatientsListProps) {
             </div>
             <div className="space-y-1">
               <label htmlFor="p-ph" className={lbl}>Teléfono</label>
-              <input id="p-ph" name="phone" type="tel" className={inp} placeholder="+54 11 1234 5678" />
+              <input id="p-ph" name="phone" type="tel" className={inp} placeholder="+595 981 123456" />
             </div>
             <div className="space-y-1">
               <label htmlFor="p-bd" className={lbl}>Fecha de nacimiento</label>
@@ -93,6 +133,47 @@ export function PatientsList({ patients }: PatientsListProps) {
             <div className="space-y-1">
               <label htmlFor="p-al" className={lbl}>Alergias</label>
               <input id="p-al" name="allergies" className={inp} placeholder="Ej: Penicilina, polen" />
+            </div>
+
+            {/* Location fields */}
+            <div className="space-y-1">
+              <label htmlFor="p-dept" className={lbl}>Departamento</label>
+              <select
+                id="p-dept"
+                name="departmentId"
+                className={inp}
+                value={selectedDept}
+                onChange={(e) => setSelectedDept(e.target.value)}
+              >
+                <option value="">— Seleccionar —</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="p-city" className={lbl}>Ciudad</label>
+              <select
+                id="p-city"
+                name="cityId"
+                className={inp}
+                disabled={!selectedDept || loadingCities}
+              >
+                <option value="">
+                  {loadingCities ? "Cargando..." : !selectedDept ? "Elegí departamento primero" : "— Seleccionar —"}
+                </option>
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="p-nb" className={lbl}>Barrio</label>
+              <input id="p-nb" name="neighborhood" className={inp} placeholder="Ej: Sajonia" />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="p-addr" className={lbl}>Dirección</label>
+              <input id="p-addr" name="address" className={inp} placeholder="Ej: Av. Mariscal López 1234" />
             </div>
           </div>
 
@@ -129,7 +210,7 @@ export function PatientsList({ patients }: PatientsListProps) {
                 <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Teléfono</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Sangre</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Alergias</th>
+                <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Ubicación</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -139,7 +220,11 @@ export function PatientsList({ patients }: PatientsListProps) {
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.email}</td>
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.phone || "—"}</td>
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.bloodType || "—"}</td>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.allergies || "—"}</td>
+                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                    {p.cityName && p.departmentName
+                      ? `${p.cityName}, ${p.departmentName}`
+                      : p.departmentName || "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>

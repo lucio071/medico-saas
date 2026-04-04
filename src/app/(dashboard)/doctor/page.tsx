@@ -152,13 +152,15 @@ export default async function DoctorPage() {
     birthDate: string | null;
     bloodType: string | null;
     allergies: string | null;
+    departmentName: string | null;
+    cityName: string | null;
   };
 
   let patientItems: PatientItem[] = [];
   if (tenantId) {
     const { data } = await supabase
       .from("patients")
-      .select("id, user_id, phone, birth_date, blood_type, allergies, users(full_name, email)")
+      .select("id, user_id, phone, birth_date, blood_type, allergies, department_id, city_id, users(full_name, email)")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -170,10 +172,36 @@ export default async function DoctorPage() {
       birth_date: string | null;
       blood_type: string | null;
       allergies: string | null;
+      department_id: number | null;
+      city_id: number | null;
       users: { full_name: string; email: string } | null;
     };
 
-    patientItems = ((data ?? []) as unknown as PRow[]).map((p) => ({
+    const rows = (data ?? []) as unknown as PRow[];
+
+    // Resolve department & city names
+    const deptIds = [...new Set(rows.map((p) => p.department_id).filter(Boolean))] as number[];
+    const cityIds = [...new Set(rows.map((p) => p.city_id).filter(Boolean))] as number[];
+
+    const deptNameMap = new Map<number, string>();
+    const cityNameMap = new Map<number, string>();
+
+    if (deptIds.length > 0) {
+      const { data: depts } = await supabase
+        .from("departments")
+        .select("id, name")
+        .in("id", deptIds);
+      for (const d of depts ?? []) deptNameMap.set(d.id, d.name);
+    }
+    if (cityIds.length > 0) {
+      const { data: cts } = await supabase
+        .from("cities")
+        .select("id, name")
+        .in("id", cityIds);
+      for (const c of cts ?? []) cityNameMap.set(c.id, c.name);
+    }
+
+    patientItems = rows.map((p) => ({
       id: p.id,
       fullName: p.users?.full_name?.trim() || "Sin nombre",
       email: p.users?.email || "",
@@ -181,8 +209,16 @@ export default async function DoctorPage() {
       birthDate: p.birth_date,
       bloodType: p.blood_type,
       allergies: p.allergies,
+      departmentName: p.department_id ? (deptNameMap.get(p.department_id) ?? null) : null,
+      cityName: p.city_id ? (cityNameMap.get(p.city_id) ?? null) : null,
     }));
   }
+
+  // Departments list for the patient form
+  const { data: departmentsList } = await supabase
+    .from("departments")
+    .select("id, name")
+    .order("name", { ascending: true });
 
   // ================================================================
   // TAB 3: Offices
@@ -295,7 +331,7 @@ export default async function DoctorPage() {
     {
       id: "pacientes",
       label: "Pacientes",
-      content: <PatientsList patients={patientItems} />,
+      content: <PatientsList patients={patientItems} departments={(departmentsList ?? []).map((d) => ({ id: d.id, name: d.name }))} />,
     },
     {
       id: "consultorios",
