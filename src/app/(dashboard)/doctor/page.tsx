@@ -146,21 +146,28 @@ export default async function DoctorPage() {
   // ================================================================
   type PatientItem = {
     id: string;
+    userId: string;
     fullName: string;
     email: string;
     phone: string | null;
     birthDate: string | null;
     bloodType: string | null;
     allergies: string[] | null;
+    emergencyContact: string | null;
+    departmentId: number | null;
+    cityId: number | null;
     departmentName: string | null;
     cityName: string | null;
+    address: string | null;
+    neighborhood: string | null;
+    isActive: boolean;
   };
 
   let patientItems: PatientItem[] = [];
   if (tenantId) {
     const { data } = await supabase
       .from("patients")
-      .select("id, user_id, phone, birth_date, blood_type, allergies, department_id, city_id, users(full_name, email)")
+      .select("id, user_id, phone, birth_date, blood_type, allergies, emergency_contact, department_id, city_id, address, neighborhood, users(full_name, email, is_active)")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -172,9 +179,12 @@ export default async function DoctorPage() {
       birth_date: string | null;
       blood_type: string | null;
       allergies: string[] | null;
+      emergency_contact: string | null;
       department_id: number | null;
       city_id: number | null;
-      users: { full_name: string; email: string } | null;
+      address: string | null;
+      neighborhood: string | null;
+      users: { full_name: string; email: string; is_active: boolean } | null;
     };
 
     const rows = (data ?? []) as unknown as PRow[];
@@ -203,14 +213,21 @@ export default async function DoctorPage() {
 
     patientItems = rows.map((p) => ({
       id: p.id,
+      userId: p.user_id,
       fullName: p.users?.full_name?.trim() || "Sin nombre",
       email: p.users?.email || "",
       phone: p.phone,
       birthDate: p.birth_date,
       bloodType: p.blood_type,
       allergies: p.allergies,
+      emergencyContact: p.emergency_contact,
+      departmentId: p.department_id,
+      cityId: p.city_id,
       departmentName: p.department_id ? (deptNameMap.get(p.department_id) ?? null) : null,
       cityName: p.city_id ? (cityNameMap.get(p.city_id) ?? null) : null,
+      address: p.address,
+      neighborhood: p.neighborhood,
+      isActive: p.users?.is_active ?? true,
     }));
   }
 

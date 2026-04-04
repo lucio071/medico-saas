@@ -4,22 +4,33 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
+// --------------- helpers ---------------
+function str(fd: FormData, key: string): string {
+  return ((fd.get(key) as string | null) ?? "").trim();
+}
+function intOrNull(fd: FormData, key: string): number | null {
+  const v = str(fd, key);
+  return v ? parseInt(v, 10) : null;
+}
+function parseAllergies(raw: string): string[] | null {
+  if (!raw) return null;
+  const arr = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return arr.length > 0 ? arr : null;
+}
+
+// --------------- CREATE ---------------
 export async function createPatient(formData: FormData) {
-  const fullName = (formData.get("fullName") as string | null)?.trim() ?? "";
-  const email = (formData.get("email") as string | null)?.trim() ?? "";
-  const phone = (formData.get("phone") as string | null)?.trim() ?? "";
-  const birthDate = (formData.get("birthDate") as string | null)?.trim() ?? "";
-  const bloodType = (formData.get("bloodType") as string | null)?.trim() ?? "";
-  const allergiesRaw = (formData.get("allergies") as string | null)?.trim() ?? "";
-  const allergies = allergiesRaw
-    ? allergiesRaw.split(",").map((s) => s.trim()).filter(Boolean)
-    : null;
-  const departmentIdRaw = (formData.get("departmentId") as string | null)?.trim() ?? "";
-  const cityIdRaw = (formData.get("cityId") as string | null)?.trim() ?? "";
-  const address = (formData.get("address") as string | null)?.trim() ?? "";
-  const neighborhood = (formData.get("neighborhood") as string | null)?.trim() ?? "";
-  const departmentId = departmentIdRaw ? parseInt(departmentIdRaw, 10) : null;
-  const cityId = cityIdRaw ? parseInt(cityIdRaw, 10) : null;
+  const fullName = str(formData, "fullName");
+  const email = str(formData, "email");
+  const phone = str(formData, "phone");
+  const birthDate = str(formData, "birthDate");
+  const bloodType = str(formData, "bloodType");
+  const allergies = parseAllergies(str(formData, "allergies"));
+  const emergencyContact = str(formData, "emergencyContact");
+  const departmentId = intOrNull(formData, "departmentId");
+  const cityId = intOrNull(formData, "cityId");
+  const address = str(formData, "address");
+  const neighborhood = str(formData, "neighborhood");
 
   if (!fullName || !email) {
     return { error: "Nombre y email son obligatorios." };
@@ -29,7 +40,6 @@ export async function createPatient(formData: FormData) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return { error: "No autenticado." };
 
   const { data: currentUser } = await supabase
@@ -72,9 +82,7 @@ export async function createPatient(formData: FormData) {
     is_active: true,
   });
 
-  if (userError) {
-    return { error: userError.message };
-  }
+  if (userError) return { error: userError.message };
 
   const { error: patientError } = await admin.from("patients").insert({
     tenant_id: tenantId,
@@ -83,17 +91,103 @@ export async function createPatient(formData: FormData) {
     phone: phone || null,
     blood_type: bloodType || null,
     allergies,
+    emergency_contact: emergencyContact || null,
     department_id: departmentId,
     city_id: cityId,
     address: address || null,
     neighborhood: neighborhood || null,
   });
 
-  if (patientError) {
-    return { error: patientError.message };
-  }
+  if (patientError) return { error: patientError.message };
 
   revalidatePath("/secretary");
   revalidatePath("/doctor");
+  return { error: null };
+}
+
+// --------------- UPDATE ---------------
+export async function updatePatient(formData: FormData) {
+  const patientId = str(formData, "patientId");
+  const fullName = str(formData, "fullName");
+  const phone = str(formData, "phone");
+  const birthDate = str(formData, "birthDate");
+  const bloodType = str(formData, "bloodType");
+  const allergies = parseAllergies(str(formData, "allergies"));
+  const emergencyContact = str(formData, "emergencyContact");
+  const departmentId = intOrNull(formData, "departmentId");
+  const cityId = intOrNull(formData, "cityId");
+  const address = str(formData, "address");
+  const neighborhood = str(formData, "neighborhood");
+
+  if (!patientId || !fullName) {
+    return { error: "ID y nombre son obligatorios." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado." };
+
+  // Get patient's user_id
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("user_id")
+    .eq("id", patientId)
+    .single();
+  if (!patient) return { error: "Paciente no encontrado." };
+
+  // Update users table (full_name, phone)
+  const { error: userError } = await supabase
+    .from("users")
+    .update({ full_name: fullName, phone: phone || null })
+    .eq("id", patient.user_id);
+  if (userError) return { error: userError.message };
+
+  // Update patients table
+  const { error: patientError } = await supabase
+    .from("patients")
+    .update({
+      phone: phone || null,
+      birth_date: birthDate || null,
+      blood_type: bloodType || null,
+      allergies,
+      emergency_contact: emergencyContact || null,
+      department_id: departmentId,
+      city_id: cityId,
+      address: address || null,
+      neighborhood: neighborhood || null,
+    })
+    .eq("id", patientId);
+  if (patientError) return { error: patientError.message };
+
+  revalidatePath("/doctor");
+  revalidatePath("/secretary");
+  return { error: null };
+}
+
+// --------------- TOGGLE ACTIVE ---------------
+export async function togglePatientActive(patientId: string, isActive: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado." };
+
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("user_id")
+    .eq("id", patientId)
+    .single();
+  if (!patient) return { error: "Paciente no encontrado." };
+
+  const { error } = await supabase
+    .from("users")
+    .update({ is_active: isActive })
+    .eq("id", patient.user_id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/doctor");
+  revalidatePath("/secretary");
   return { error: null };
 }
