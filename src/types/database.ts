@@ -617,6 +617,44 @@ export type Database = {
           },
         ];
       };
+      invitations: {
+        Row: {
+          id: string;
+          token: string;
+          doctor_id: string;
+          invited_email: string;
+          status: "pending" | "accepted" | "expired";
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          token: string;
+          doctor_id: string;
+          invited_email: string;
+          status?: "pending" | "accepted" | "expired";
+          expires_at: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          token?: string;
+          doctor_id?: string;
+          invited_email?: string;
+          status?: "pending" | "accepted" | "expired";
+          expires_at?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "invitations_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       waitlist: {
         Row: {
           id: string;

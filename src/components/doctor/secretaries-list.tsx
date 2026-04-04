@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { createSecretary } from "@/app/actions/secretaries";
+import { useState, useTransition } from "react";
+import { createInvitation, resendInvitation } from "@/app/actions/invitations";
 
 interface Secretary {
   id: string;
@@ -11,123 +11,201 @@ interface Secretary {
   isActive: boolean;
 }
 
-interface SecretariesListProps {
-  secretaries: Secretary[];
+interface Invitation {
+  id: string;
+  email: string;
+  status: "pending" | "accepted" | "expired";
+  expiresAt: string;
+  createdAt: string;
 }
 
-export function SecretariesList({ secretaries }: SecretariesListProps) {
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const formRef = useRef<HTMLFormElement>(null);
+interface SecretariesListProps {
+  secretaries: Secretary[];
+  invitations: Invitation[];
+}
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+function formatDate(iso: string) {
+  return new Intl.DateTimeFormat("es", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  accepted: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+  expired: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: "Pendiente",
+  accepted: "Aceptada",
+  expired: "Expirada",
+};
+
+export function SecretariesList({ secretaries, invitations }: SecretariesListProps) {
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleInvite(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
     const fd = new FormData(e.currentTarget);
     startTransition(async () => {
-      const res = await createSecretary(fd);
+      const res = await createInvitation(fd);
+      if (res.error) {
+        setError(res.error);
+      } else {
+        setEmail("");
+        setSuccess("Invitación enviada correctamente.");
+      }
+    });
+  }
+
+  function handleResend(id: string) {
+    setError(null);
+    setSuccess(null);
+    startTransition(async () => {
+      const res = await resendInvitation(id);
       if (res.error) setError(res.error);
-      else { formRef.current?.reset(); setOpen(false); }
+      else setSuccess("Invitación reenviada.");
     });
   }
 
   const inp =
     "h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
-  const lbl = "text-sm font-medium text-zinc-700 dark:text-zinc-300";
+
+  const pendingInvitations = invitations.filter((i) => i.status !== "accepted");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      {/* Invite form */}
+      <div className="space-y-4">
         <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          Secretarias ({secretaries.length})
+          Invitar secretaria
         </h3>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-9 items-center rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          {open ? "Cancelar" : "+ Nueva secretaria"}
-        </button>
-      </div>
-
-      {open ? (
-        <form
-          ref={formRef}
-          onSubmit={handleSubmit}
-          className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className={lbl}>Nombre completo *</label>
-              <input name="fullName" required className={inp} placeholder="María López" />
-            </div>
-            <div className="space-y-1">
-              <label className={lbl}>Email *</label>
-              <input name="email" type="email" required className={inp} placeholder="secretaria@email.com" />
-            </div>
-            <div className="space-y-1">
-              <label className={lbl}>Teléfono</label>
-              <input name="phone" type="tel" className={inp} placeholder="+595 981 123456" />
-            </div>
-            <div className="space-y-1">
-              <label className={lbl}>Contraseña temporal *</label>
-              <input name="password" type="text" required minLength={6} className={inp} defaultValue="12345678" />
-            </div>
-          </div>
-
-          {error ? (
-            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
-              {error}
-            </p>
-          ) : null}
-
+        <form onSubmit={handleInvite} className="flex gap-3">
+          <input
+            name="email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inp}
+            placeholder="secretaria@email.com"
+          />
           <button
             type="submit"
             disabled={isPending}
-            className="mt-4 inline-flex h-10 items-center rounded-lg bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="shrink-0 inline-flex h-10 items-center rounded-lg bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
-            {isPending ? "Creando..." : "Crear secretaria"}
+            {isPending ? "Enviando..." : "Enviar invitación"}
           </button>
         </form>
-      ) : null}
 
-      {secretaries.length === 0 ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-          No hay secretarias registradas.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Nombre</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Email</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Teléfono</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {secretaries.map((s) => (
-                <tr key={s.id} className={!s.isActive ? "opacity-50" : ""}>
-                  <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">{s.fullName}</td>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{s.email}</td>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{s.phone || "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      s.isActive
-                        ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300"
-                        : "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300"
-                    }`}>
-                      {s.isActive ? "Activa" : "Inactiva"}
-                    </span>
-                  </td>
+        {error ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+            {error}
+          </p>
+        ) : null}
+        {success ? (
+          <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-300">
+            {success}
+          </p>
+        ) : null}
+      </div>
+
+      {/* Current secretaries */}
+      <div className="space-y-4">
+        <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          Secretarias actuales ({secretaries.length})
+        </h3>
+
+        {secretaries.length === 0 ? (
+          <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+            No hay secretarias. Enviá una invitación por email.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 dark:border-zinc-800">
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Nombre</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Email</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Teléfono</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Estado</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {secretaries.map((s) => (
+                  <tr key={s.id} className={!s.isActive ? "opacity-50" : ""}>
+                    <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">{s.fullName}</td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{s.email}</td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{s.phone || "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${s.isActive ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300"}`}>
+                        {s.isActive ? "Activa" : "Inactiva"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Pending invitations */}
+      {pendingInvitations.length > 0 ? (
+        <div className="space-y-4">
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            Invitaciones ({pendingInvitations.length})
+          </h3>
+          <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 dark:border-zinc-800">
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Email</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Estado</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Expira</th>
+                  <th className="px-4 py-3 text-right font-medium text-zinc-500 dark:text-zinc-400">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {pendingInvitations.map((inv) => (
+                  <tr key={inv.id}>
+                    <td className="px-4 py-3 text-zinc-900 dark:text-zinc-100">{inv.email}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[inv.status]}`}>
+                        {STATUS_LABEL[inv.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                      {formatDate(inv.expiresAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {inv.status === "pending" || inv.status === "expired" ? (
+                        <button
+                          type="button"
+                          onClick={() => handleResend(inv.id)}
+                          disabled={isPending}
+                          className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          {inv.status === "expired" ? "Reenviar" : "Reenviar email"}
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

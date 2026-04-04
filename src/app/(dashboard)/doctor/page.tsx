@@ -379,6 +379,34 @@ export default async function DoctorPage() {
   }
 
   // ================================================================
+  // Invitations for this doctor
+  // ================================================================
+  type InvitationItem = {
+    id: string;
+    email: string;
+    status: "pending" | "accepted" | "expired";
+    expiresAt: string;
+    createdAt: string;
+  };
+
+  let invitationItems: InvitationItem[] = [];
+  if (doctorId) {
+    const { data: invRows } = await adminDb
+      .from("invitations")
+      .select("id, invited_email, status, expires_at, created_at")
+      .eq("doctor_id", doctorId)
+      .order("created_at", { ascending: false });
+
+    invitationItems = (invRows ?? []).map((i) => ({
+      id: i.id,
+      email: i.invited_email,
+      status: i.status,
+      expiresAt: i.expires_at,
+      createdAt: i.created_at,
+    }));
+  }
+
+  // ================================================================
   // Build tabs
   // ================================================================
   const tabs = [
@@ -422,7 +450,7 @@ export default async function DoctorPage() {
     {
       id: "secretarias",
       label: "Secretarias",
-      content: <SecretariesList secretaries={secretaryItems} />,
+      content: <SecretariesList secretaries={secretaryItems} invitations={invitationItems} />,
     },
   ];
 
