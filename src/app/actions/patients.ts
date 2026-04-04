@@ -10,7 +10,10 @@ export async function createPatient(formData: FormData) {
   const phone = (formData.get("phone") as string | null)?.trim() ?? "";
   const birthDate = (formData.get("birthDate") as string | null)?.trim() ?? "";
   const bloodType = (formData.get("bloodType") as string | null)?.trim() ?? "";
-  const allergies = (formData.get("allergies") as string | null)?.trim() ?? "";
+  const allergiesRaw = (formData.get("allergies") as string | null)?.trim() ?? "";
+  const allergies = allergiesRaw
+    ? allergiesRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : null;
   const departmentIdRaw = (formData.get("departmentId") as string | null)?.trim() ?? "";
   const cityIdRaw = (formData.get("cityId") as string | null)?.trim() ?? "";
   const address = (formData.get("address") as string | null)?.trim() ?? "";
@@ -79,7 +82,7 @@ export async function createPatient(formData: FormData) {
     birth_date: birthDate || null,
     phone: phone || null,
     blood_type: bloodType || null,
-    allergies: allergies || null,
+    allergies,
     department_id: departmentId,
     city_id: cityId,
     address: address || null,

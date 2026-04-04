@@ -263,7 +263,7 @@ export type Database = {
           birth_date: string | null;
           phone: string | null;
           blood_type: string | null;
-          allergies: string | null;
+          allergies: string[] | null;
           emergency_contact: string | null;
           department_id: number | null;
           city_id: number | null;
@@ -278,7 +278,7 @@ export type Database = {
           birth_date?: string | null;
           phone?: string | null;
           blood_type?: string | null;
-          allergies?: string | null;
+          allergies?: string[] | null;
           emergency_contact?: string | null;
           department_id?: number | null;
           city_id?: number | null;
@@ -293,7 +293,7 @@ export type Database = {
           birth_date?: string | null;
           phone?: string | null;
           blood_type?: string | null;
-          allergies?: string | null;
+          allergies?: string[] | null;
           emergency_contact?: string | null;
           department_id?: number | null;
           city_id?: number | null;

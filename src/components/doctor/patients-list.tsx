@@ -20,7 +20,7 @@ interface Patient {
   phone: string | null;
   birthDate: string | null;
   bloodType: string | null;
-  allergies: string | null;
+  allergies: string[] | null;
   departmentName: string | null;
   cityName: string | null;
 }

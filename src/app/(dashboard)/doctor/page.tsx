@@ -151,7 +151,7 @@ export default async function DoctorPage() {
     phone: string | null;
     birthDate: string | null;
     bloodType: string | null;
-    allergies: string | null;
+    allergies: string[] | null;
     departmentName: string | null;
     cityName: string | null;
   };
@@ -171,7 +171,7 @@ export default async function DoctorPage() {
       phone: string | null;
       birth_date: string | null;
       blood_type: string | null;
-      allergies: string | null;
+      allergies: string[] | null;
       department_id: number | null;
       city_id: number | null;
       users: { full_name: string; email: string } | null;
