@@ -71,6 +71,9 @@ export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }
       .finally(() => setLoadingCities(false));
   }, [selectedDept]);
 
+  // Load all doctors on mount
+  useEffect(() => { handleSearch(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
   async function handleSearch() {
     setLoading(true);
     setSearched(true);
@@ -80,6 +83,7 @@ export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }
       if (selectedDept) params.set("department_id", selectedDept);
       if (cityId) params.set("city_id", cityId);
       const res = await fetch(`/api/doctors/search?${params}`);
+      if (!res.ok) { setResults([]); return; }
       const data: DoctorResult[] = await res.json();
       setResults(data);
     } catch {
