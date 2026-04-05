@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { bookSlotAsPatient } from "@/app/actions/patient-actions";
 
+interface Department {
+  id: number;
+  name: string;
+}
+
 interface City {
   id: number;
   name: string;
@@ -24,14 +29,17 @@ interface Slot {
 }
 
 interface DoctorSearchProps {
-  cities: City[];
+  departments: Department[];
   specialties: string[];
   isLoggedIn: boolean;
   isPatient: boolean;
 }
 
-export function DoctorSearch({ cities, specialties, isLoggedIn, isPatient }: DoctorSearchProps) {
+export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }: DoctorSearchProps) {
   const [specialty, setSpecialty] = useState("");
+  const [selectedDept, setSelectedDept] = useState("");
+  const [cities, setCities] = useState<City[]>([]);
+  const [loadingCities, setLoadingCities] = useState(false);
   const [cityId, setCityId] = useState("");
   const [results, setResults] = useState<DoctorResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,12 +59,25 @@ export function DoctorSearch({ cities, specialties, isLoggedIn, isPatient }: Doc
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  // Fetch cities when department changes
+  useEffect(() => {
+    if (!selectedDept) { setCities([]); setCityId(""); return; }
+    setLoadingCities(true);
+    setCityId("");
+    fetch(`/api/cities?department_id=${selectedDept}`)
+      .then((r) => r.json())
+      .then((data: City[]) => setCities(data))
+      .catch(() => setCities([]))
+      .finally(() => setLoadingCities(false));
+  }, [selectedDept]);
+
   async function handleSearch() {
     setLoading(true);
     setSearched(true);
     try {
       const params = new URLSearchParams();
       if (specialty) params.set("specialty", specialty);
+      if (selectedDept) params.set("department_id", selectedDept);
       if (cityId) params.set("city_id", cityId);
       const res = await fetch(`/api/doctors/search?${params}`);
       const data: DoctorResult[] = await res.json();
@@ -122,7 +143,7 @@ export function DoctorSearch({ cities, specialties, isLoggedIn, isPatient }: Doc
     <div className="space-y-6">
       {/* Search form */}
       <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1">
             <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Especialidad</label>
             <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className={inp}>
@@ -133,9 +154,25 @@ export function DoctorSearch({ cities, specialties, isLoggedIn, isPatient }: Doc
             </select>
           </div>
           <div className="space-y-1">
+            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Departamento</label>
+            <select value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)} className={inp}>
+              <option value="">Todos</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
             <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Ciudad</label>
-            <select value={cityId} onChange={(e) => setCityId(e.target.value)} className={inp}>
-              <option value="">Todas</option>
+            <select
+              value={cityId}
+              onChange={(e) => setCityId(e.target.value)}
+              disabled={!selectedDept || loadingCities}
+              className={inp}
+            >
+              <option value="">
+                {loadingCities ? "Cargando..." : !selectedDept ? "Elegí departamento" : "Todas"}
+              </option>
               {cities.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

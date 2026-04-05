@@ -3,17 +3,21 @@ import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
   const specialty = request.nextUrl.searchParams.get("specialty") ?? "";
+  const departmentId = request.nextUrl.searchParams.get("department_id") ?? "";
   const cityId = request.nextUrl.searchParams.get("city_id") ?? "";
 
   const admin = createAdminClient();
 
-  let query = admin.from("doctors").select("id, user_id, specialty, consultation_duration, city_id");
+  let query = admin.from("doctors").select("id, user_id, specialty, consultation_duration, department_id, city_id");
 
   if (specialty) {
     query = query.ilike("specialty", `%${specialty}%`);
   }
+  if (departmentId) {
+    query = query.eq("department_id", parseInt(departmentId, 10));
+  }
   if (cityId) {
-    query = query.eq("city_id", parseInt(cityId, 10));
+    query = query.or(`city_id.eq.${parseInt(cityId, 10)},city_id.is.null`);
   }
 
   const { data: doctors } = await query.limit(50);

@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+
+interface Dept { id: number; name: string }
+interface City { id: number; name: string }
 
 function buildSlug(name: string, email: string): string {
   const namePart = name
@@ -36,12 +39,44 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Department / City
+  const [departments, setDepartments] = useState<Dept[]>([]);
+  const [selectedDept, setSelectedDept] = useState("");
+  const [cities, setCities] = useState<City[]>([]);
+  const [loadingCities, setLoadingCities] = useState(false);
+  const [cityId, setCityId] = useState("");
+
+  // Load departments on mount
+  useEffect(() => {
+    supabase.from("departments").select("id, name").order("name").then(({ data }) => {
+      setDepartments((data ?? []) as Dept[]);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch cities when department changes
+  useEffect(() => {
+    if (!selectedDept) { setCities([]); setCityId(""); return; }
+    setLoadingCities(true);
+    setCityId("");
+    fetch(`/api/cities?department_id=${selectedDept}`)
+      .then((r) => r.json())
+      .then((data: City[]) => setCities(data))
+      .catch(() => setCities([]))
+      .finally(() => setLoadingCities(false));
+  }, [selectedDept]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
     if (password !== confirmPassword) {
       setError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    if (!selectedDept || !cityId) {
+      setError("Departamento y ciudad son obligatorios.");
       return;
     }
 
@@ -111,6 +146,8 @@ export default function RegisterPage() {
       user_id: userId,
       specialty,
       license_number: licenseNumber,
+      department_id: parseInt(selectedDept),
+      city_id: parseInt(cityId),
     });
 
     if (insertDoctorError) {
@@ -233,6 +270,46 @@ export default function RegisterPage() {
                 className={inputClass}
                 placeholder="Ej: 123456"
               />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="department" className={labelClass}>
+                  Departamento
+                </label>
+                <select
+                  id="department"
+                  required
+                  value={selectedDept}
+                  onChange={(e) => setSelectedDept(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Seleccionar...</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="city" className={labelClass}>
+                  Ciudad
+                </label>
+                <select
+                  id="city"
+                  required
+                  value={cityId}
+                  onChange={(e) => setCityId(e.target.value)}
+                  disabled={!selectedDept || loadingCities}
+                  className={inputClass}
+                >
+                  <option value="">
+                    {loadingCities ? "Cargando..." : !selectedDept ? "Elegí departamento" : "Seleccionar..."}
+                  </option>
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="space-y-2">

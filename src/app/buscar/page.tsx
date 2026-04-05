@@ -5,9 +5,9 @@ import { DoctorSearch } from "@/components/patient/doctor-search";
 export default async function BuscarPage() {
   const admin = createAdminClient();
 
-  // Load cities
-  const { data: cities } = await admin
-    .from("cities")
+  // Load departments
+  const { data: departments } = await admin
+    .from("departments")
     .select("id, name")
     .order("name", { ascending: true });
 
@@ -52,7 +52,7 @@ export default async function BuscarPage() {
 
       <main className="mx-auto max-w-5xl px-4 py-8">
         <DoctorSearch
-          cities={(cities ?? []).map((c) => ({ id: c.id, name: c.name }))}
+          departments={(departments ?? []).map((d) => ({ id: d.id, name: d.name }))}
           specialties={specialties}
           isLoggedIn={false}
           isPatient={false}
