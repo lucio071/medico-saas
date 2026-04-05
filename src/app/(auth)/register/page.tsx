@@ -293,6 +293,14 @@ export default function RegisterPage() {
               Inicia sesión
             </Link>
           </p>
+          <p className="mt-3 text-center text-sm text-zinc-600 dark:text-zinc-400">
+            <Link
+              href="/buscar"
+              className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-800 dark:text-zinc-100 dark:decoration-zinc-600"
+            >
+              Buscar médico
+            </Link>
+          </p>
         </div>
       </div>
     </main>
