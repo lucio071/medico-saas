@@ -48,10 +48,10 @@ export default function RegisterPage() {
 
   // Load departments on mount
   useEffect(() => {
-    supabase.from("departments").select("id, name").order("name").then(({ data }) => {
-      setDepartments((data ?? []) as Dept[]);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetch("/api/departments")
+      .then((r) => r.json())
+      .then((data: Dept[]) => setDepartments(data))
+      .catch(() => setDepartments([]));
   }, []);
 
   // Fetch cities when department changes

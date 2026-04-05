@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminReadClient } from "@/lib/supabase/admin-read";
 import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -8,8 +8,8 @@ export async function GET(request: NextRequest) {
     return Response.json([]);
   }
 
-  const supabase = await createClient();
-  const { data } = await supabase
+  const admin = createAdminReadClient();
+  const { data } = await admin
     .from("cities")
     .select("id, name")
     .eq("department_id", parseInt(departmentId, 10))

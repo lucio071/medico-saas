@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     query = query.ilike("specialty", `%${specialty}%`);
   }
   if (departmentId) {
-    query = query.eq("department_id", parseInt(departmentId, 10));
+    query = query.or(`department_id.eq.${parseInt(departmentId, 10)},department_id.is.null`);
   }
   if (cityId) {
     query = query.or(`city_id.eq.${parseInt(cityId, 10)},city_id.is.null`);
