@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/register", "/verify", "/invite", "/buscar", "/_next", "/favicon"];
+const PUBLIC_PREFIXES = ["/login", "/register", "/verify", "/invite", "/buscar", "/_next", "/favicon", "/api/departments", "/api/cities", "/api/doctors/search"];
 const AUTH_ONLY_PREFIXES = ["/api"];
 
 function getRoleRedirect(role: string | null): string {
