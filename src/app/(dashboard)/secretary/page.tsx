@@ -359,8 +359,6 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
         <SlotBookingForm
           doctors={assignedDoctors}
           patients={activePatients}
-          slotsByDoctor={slotsByDoctor}
-          currentDate={currentDate}
         />
       ),
     },
