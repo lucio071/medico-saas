@@ -44,8 +44,29 @@ export async function createInvitation(formData: FormData) {
     .single();
   if (!doctor) return { error: "Perfil de médico no encontrado." };
 
-  // Check if already invited and pending
   const admin = createAdminClient();
+
+  // Validate email role
+  const { data: emailUser } = await admin
+    .from("users")
+    .select("id, role")
+    .eq("email", email)
+    .limit(1);
+
+  if (emailUser && emailUser.length > 0) {
+    const role = emailUser[0].role;
+    if (role === "doctor") {
+      return { error: "Este email pertenece a un médico registrado. No puedes invitar a un médico como secretaria." };
+    }
+    if (role === "patient") {
+      return { error: "Este email pertenece a un paciente registrado." };
+    }
+    if (role === "admin") {
+      return { error: "Este email pertenece a un administrador." };
+    }
+  }
+
+  // Check if already invited and pending
   const { data: existing } = await admin
     .from("invitations")
     .select("id, status")
@@ -58,14 +79,9 @@ export async function createInvitation(formData: FormData) {
   }
 
   // Check if already linked as secretary
-  const { data: existingUser } = await admin
-    .from("users")
-    .select("id")
-    .eq("email", email)
-    .eq("role", "secretary")
-    .limit(1);
+  const existingUser = emailUser?.filter((u) => u.role === "secretary") ?? [];
 
-  if (existingUser && existingUser.length > 0) {
+  if (existingUser.length > 0) {
     const { data: existingRel } = await admin
       .from("secretary_doctors")
       .select("id")

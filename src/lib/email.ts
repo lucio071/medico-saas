@@ -7,7 +7,11 @@ export async function sendInvitationEmail(
   doctorName: string,
   inviteUrl: string,
 ) {
-  const { error } = await resend.emails.send({
+  console.log("[sendInvitationEmail] Sending to:", to);
+  console.log("[sendInvitationEmail] RESEND_API_KEY exists:", !!process.env.RESEND_API_KEY);
+  console.log("[sendInvitationEmail] Invite URL:", inviteUrl);
+
+  const { data, error } = await resend.emails.send({
     from: "MedicoSaaS <onboarding@resend.dev>",
     to,
     subject: `El Dr. ${doctorName} te invitó a MedicoSaaS`,
@@ -27,9 +31,14 @@ export async function sendInvitationEmail(
     `,
   });
 
+  console.log("[sendInvitationEmail] Resend response data:", JSON.stringify(data));
+  console.log("[sendInvitationEmail] Resend response error:", JSON.stringify(error));
+
   if (error) {
-    console.error("[sendInvitationEmail]", error);
+    console.error("[sendInvitationEmail] FAILED:", error.name, error.message);
     return { error: error.message };
   }
+
+  console.log("[sendInvitationEmail] SUCCESS — email id:", data?.id);
   return { error: null };
 }
