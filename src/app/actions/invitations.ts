@@ -391,3 +391,18 @@ export async function acceptInvitationRegister(
 
   return { error: null };
 }
+
+// ─── DELETE INVITATION ───
+export async function deleteInvitation(invitationId: string) {
+  const admin = createAdminClient();
+
+  const { error } = await admin
+    .from("invitations")
+    .delete()
+    .eq("id", invitationId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/doctor");
+  return { error: null };
+}

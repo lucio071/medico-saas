@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createInvitation, resendInvitation } from "@/app/actions/invitations";
+import { createInvitation, resendInvitation, deleteInvitation } from "@/app/actions/invitations";
+import { removeSecretary, toggleSecretaryActive } from "@/app/actions/secretaries";
 
 interface Secretary {
   id: string;
@@ -76,6 +77,40 @@ export function SecretariesList({ secretaries, invitations }: SecretariesListPro
     });
   }
 
+  function handleDelete(id: string) {
+    if (!confirm("¿Eliminar esta invitación?")) return;
+    setError(null);
+    setSuccess(null);
+    startTransition(async () => {
+      const res = await deleteInvitation(id);
+      if (res.error) setError(res.error);
+      else setSuccess("Invitación eliminada.");
+    });
+  }
+
+  function handleRemove(s: Secretary) {
+    if (!confirm(`¿Desvincular a ${s.fullName} como secretaria? Ya no podrá acceder a tu agenda.`)) return;
+    setError(null);
+    setSuccess(null);
+    startTransition(async () => {
+      const res = await removeSecretary(s.id);
+      if (res.error) setError(res.error);
+      else setSuccess(`${s.fullName} fue desvinculada.`);
+    });
+  }
+
+  function handleToggle(s: Secretary) {
+    const action = s.isActive ? "desactivar" : "activar";
+    if (!confirm(`¿${s.isActive ? "Desactivar" : "Activar"} a ${s.fullName}?`)) return;
+    setError(null);
+    setSuccess(null);
+    startTransition(async () => {
+      const res = await toggleSecretaryActive(s.id, !s.isActive);
+      if (res.error) setError(res.error);
+      else setSuccess(`${s.fullName} fue ${s.isActive ? "desactivada" : "activada"}.`);
+    });
+  }
+
   const inp =
     "h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
 
@@ -138,6 +173,7 @@ export function SecretariesList({ secretaries, invitations }: SecretariesListPro
                   <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Email</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Teléfono</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500 dark:text-zinc-400">Estado</th>
+                  <th className="px-4 py-3 text-right font-medium text-zinc-500 dark:text-zinc-400">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -150,6 +186,30 @@ export function SecretariesList({ secretaries, invitations }: SecretariesListPro
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${s.isActive ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300"}`}>
                         {s.isActive ? "Activa" : "Inactiva"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggle(s)}
+                          disabled={isPending}
+                          className={`text-xs font-medium disabled:opacity-50 ${
+                            s.isActive
+                              ? "text-amber-600 hover:text-amber-800 dark:text-amber-400"
+                              : "text-green-600 hover:text-green-800 dark:text-green-400"
+                          }`}
+                        >
+                          {s.isActive ? "Desactivar" : "Activar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(s)}
+                          disabled={isPending}
+                          className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50 dark:text-red-400"
+                        >
+                          Desvincular
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -188,16 +248,26 @@ export function SecretariesList({ secretaries, invitations }: SecretariesListPro
                       {formatDate(inv.expiresAt)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {inv.status === "pending" || inv.status === "expired" ? (
+                      <div className="flex justify-end gap-2">
+                        {inv.status === "pending" || inv.status === "expired" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleResend(inv.id)}
+                            disabled={isPending}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
+                          >
+                            {inv.status === "expired" ? "Reenviar" : "Reenviar email"}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
-                          onClick={() => handleResend(inv.id)}
+                          onClick={() => handleDelete(inv.id)}
                           disabled={isPending}
-                          className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
+                          className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
                         >
-                          {inv.status === "expired" ? "Reenviar" : "Reenviar email"}
+                          Eliminar
                         </button>
-                      ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

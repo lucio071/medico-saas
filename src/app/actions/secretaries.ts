@@ -108,3 +108,48 @@ export async function createSecretary(formData: FormData) {
   revalidatePath("/doctor");
   return { error: null };
 }
+
+// ─── REMOVE SECRETARY (unlink from doctor) ───
+export async function removeSecretary(secretaryId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado." };
+
+  const admin = createAdminClient();
+
+  const { data: doctor } = await admin
+    .from("doctors")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
+  if (!doctor) return { error: "Perfil de médico no encontrado." };
+
+  // Delete the relationship
+  const { error } = await admin
+    .from("secretary_doctors")
+    .delete()
+    .eq("secretary_id", secretaryId)
+    .eq("doctor_id", doctor.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/doctor");
+  return { error: null };
+}
+
+// ─── TOGGLE SECRETARY ACTIVE ───
+export async function toggleSecretaryActive(secretaryId: string, isActive: boolean) {
+  const admin = createAdminClient();
+
+  const { error } = await admin
+    .from("users")
+    .update({ is_active: isActive })
+    .eq("id", secretaryId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/doctor");
+  return { error: null };
+}
