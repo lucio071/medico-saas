@@ -72,17 +72,22 @@ export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }
   }, [selectedDept]);
 
   // Load all doctors on mount
-  useEffect(() => { handleSearch(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    fetchDoctors();
+  }, []);
 
-  async function handleSearch() {
+  async function fetchDoctors(sp?: string, dept?: string, city?: string) {
     setLoading(true);
     setSearched(true);
     try {
       const params = new URLSearchParams();
-      if (specialty) params.set("specialty", specialty);
-      if (selectedDept) params.set("department_id", selectedDept);
-      if (cityId) params.set("city_id", cityId);
-      const res = await fetch(`/api/doctors/search?${params}`);
+      const s = sp ?? specialty;
+      const d = dept ?? selectedDept;
+      const c = city ?? cityId;
+      if (s) params.set("specialty", s);
+      if (d) params.set("department_id", d);
+      if (c) params.set("city_id", c);
+      const res = await fetch(`/api/doctors/search?${params.toString()}`);
       if (!res.ok) { setResults([]); return; }
       const data: DoctorResult[] = await res.json();
       setResults(data);
@@ -91,6 +96,10 @@ export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSearch() {
+    fetchDoctors(specialty, selectedDept, cityId);
   }
 
   const fetchSlots = useCallback(async () => {
