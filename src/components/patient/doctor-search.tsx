@@ -210,61 +210,34 @@ export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="divide-y divide-zinc-200 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
         {results.map((doc) => (
-          <div key={doc.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-lg font-bold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                {doc.name.charAt(0)}
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Dr. {doc.name}</h3>
-                {doc.specialty ? (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">{doc.specialty}</p>
-                ) : null}
-              </div>
+          <button
+            key={doc.id}
+            type="button"
+            onClick={() => {
+              if (!isLoggedIn) {
+                window.location.href = `/register?doctor=${doc.id}`;
+                return;
+              }
+              if (!isPatient) return;
+              setBookingDoctor(doc);
+              setSelectedSlot("");
+              setBookingSuccess(false);
+              setBookingError(null);
+            }}
+            className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-sm font-bold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+              {doc.name.charAt(0)}
             </div>
-
-            {doc.offices.length > 0 ? (
-              <div className="mt-3 space-y-1">
-                {doc.offices.map((o, i) => (
-                  <p key={i} className="text-xs text-zinc-500 dark:text-zinc-400">
-                    <span className="font-medium text-zinc-700 dark:text-zinc-300">{o.name}</span>
-                    {o.address ? ` — ${o.address}` : ""}
-                  </p>
-                ))}
-              </div>
-            ) : null}
-
-            {doc.nextSlots.length > 0 ? (
-              <div className="mt-3">
-                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Próximos horarios:</p>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {doc.nextSlots.map((s, i) => (
-                    <span key={i} className="rounded-md bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-300">
-                      {s.date.slice(5)} {s.time}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="mt-3 text-xs text-zinc-400">Sin horarios disponibles esta semana</p>
-            )}
-
-            <button
-              onClick={() => {
-                if (!isLoggedIn) { window.location.href = "/register"; return; }
-                if (!isPatient) return;
-                setBookingDoctor(doc);
-                setSelectedSlot("");
-                setBookingSuccess(false);
-                setBookingError(null);
-              }}
-              className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg bg-zinc-900 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              {!isLoggedIn ? "Registrarse para agendar" : "Agendar cita"}
-            </button>
-          </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-zinc-900 dark:text-zinc-100">Dr. {doc.name}</p>
+              {doc.specialty ? (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 capitalize">{doc.specialty}</p>
+              ) : null}
+            </div>
+          </button>
         ))}
       </div>
 
