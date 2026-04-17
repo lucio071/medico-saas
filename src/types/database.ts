@@ -124,6 +124,7 @@ export type Database = {
           tenant_id: string | null;
           user_id: string;
           specialty: string | null;
+          specialties: string[] | null;
           license_number: string | null;
           consultation_duration: number;
           department_id: number | null;
@@ -135,6 +136,7 @@ export type Database = {
           tenant_id?: string | null;
           user_id: string;
           specialty?: string | null;
+          specialties?: string[] | null;
           license_number?: string | null;
           consultation_duration?: number;
           department_id?: number | null;
@@ -146,6 +148,7 @@ export type Database = {
           tenant_id?: string | null;
           user_id?: string;
           specialty?: string | null;
+          specialties?: string[] | null;
           license_number?: string | null;
           consultation_duration?: number;
           department_id?: number | null;

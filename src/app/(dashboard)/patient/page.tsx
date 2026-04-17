@@ -197,12 +197,6 @@ export default async function PatientPage() {
   }
 
   // ================================================================
-  // TAB 4: Buscar médico — data for search
-  // ================================================================
-  const { data: allDocs } = await adminDb.from("doctors").select("specialty").not("specialty", "is", null);
-  const specialties = [...new Set((allDocs ?? []).map((d) => d.specialty).filter(Boolean) as string[])].sort();
-
-  // ================================================================
   // TAB 5: Mi perfil
   // ================================================================
   const { data: departmentsList } = await adminDb.from("departments").select("id, name").order("name");
@@ -302,7 +296,6 @@ export default async function PatientPage() {
       content: (
         <DoctorSearch
           departments={(departmentsList ?? []).map((d) => ({ id: d.id, name: d.name }))}
-          specialties={specialties}
           isLoggedIn={true}
           isPatient={true}
         />

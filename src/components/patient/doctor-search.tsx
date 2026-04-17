@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { bookSlotAsPatient } from "@/app/actions/patient-actions";
+import { SPECIALTIES } from "@/lib/specialties";
 
 interface Department {
   id: number;
@@ -17,6 +18,7 @@ interface DoctorResult {
   id: string;
   name: string;
   specialty: string | null;
+  specialties: string[];
   offices: { name: string; address: string | null }[];
   nextSlots: { date: string; time: string }[];
 }
@@ -30,12 +32,11 @@ interface Slot {
 
 interface DoctorSearchProps {
   departments: Department[];
-  specialties: string[];
   isLoggedIn: boolean;
   isPatient: boolean;
 }
 
-export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }: DoctorSearchProps) {
+export function DoctorSearch({ departments, isLoggedIn, isPatient }: DoctorSearchProps) {
   const [specialty, setSpecialty] = useState("");
   const [selectedDept, setSelectedDept] = useState("");
   const [cities, setCities] = useState<City[]>([]);
@@ -161,7 +162,7 @@ export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }
             <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Especialidad</label>
             <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className={inp}>
               <option value="">Todas</option>
-              {specialties.map((s) => (
+              {SPECIALTIES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
@@ -233,8 +234,17 @@ export function DoctorSearch({ departments, specialties, isLoggedIn, isPatient }
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-medium text-zinc-900 dark:text-zinc-100">Dr. {doc.name}</p>
-              {doc.specialty ? (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 capitalize">{doc.specialty}</p>
+              {doc.specialties.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {doc.specialties.map((s) => (
+                    <span
+                      key={s}
+                      className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
               ) : null}
             </div>
           </button>

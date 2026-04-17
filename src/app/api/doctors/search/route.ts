@@ -8,10 +8,10 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  let query = admin.from("doctors").select("id, user_id, specialty, consultation_duration, department_id, city_id");
+  let query = admin.from("doctors").select("id, user_id, specialty, specialties, consultation_duration, department_id, city_id");
 
   if (specialty) {
-    query = query.ilike("specialty", `%${specialty}%`);
+    query = query.contains("specialties", [specialty]);
   }
   if (departmentId) {
     query = query.or(`department_id.eq.${parseInt(departmentId, 10)},department_id.is.null`);
@@ -74,6 +74,7 @@ export async function GET(request: NextRequest) {
     id: d.id,
     name: nameMap.get(d.user_id) ?? "Médico",
     specialty: d.specialty,
+    specialties: d.specialties ?? (d.specialty ? [d.specialty] : []),
     offices: officesByDoctor.get(d.id) ?? [],
     nextSlots: nextSlotsByDoctor.get(d.id) ?? [],
   }));

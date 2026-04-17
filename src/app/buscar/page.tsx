@@ -11,16 +11,6 @@ export default async function BuscarPage() {
     .select("id, name")
     .order("name", { ascending: true });
 
-  // Load unique specialties
-  const { data: doctors } = await admin
-    .from("doctors")
-    .select("specialty")
-    .not("specialty", "is", null);
-
-  const specialties = [
-    ...new Set((doctors ?? []).map((d) => d.specialty).filter(Boolean) as string[]),
-  ].sort();
-
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -53,7 +43,6 @@ export default async function BuscarPage() {
       <main className="mx-auto max-w-5xl px-4 py-8">
         <DoctorSearch
           departments={(departments ?? []).map((d) => ({ id: d.id, name: d.name }))}
-          specialties={specialties}
           isLoggedIn={false}
           isPatient={false}
         />

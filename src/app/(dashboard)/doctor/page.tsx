@@ -11,6 +11,7 @@ import { PatientsList } from "@/components/doctor/patients-list";
 import { OfficesList } from "@/components/doctor/offices-list";
 import { SchedulesManager } from "@/components/doctor/schedules-manager";
 import { PrescriptionTab } from "@/components/doctor/prescription-tab";
+import { DoctorProfileForm } from "@/components/doctor/doctor-profile-form";
 
 function getTodayBoundsIso() {
   const now = new Date();
@@ -62,11 +63,12 @@ export default async function DoctorPage() {
 
   const { data: doctorRow } = await adminDb
     .from("doctors")
-    .select("id, specialty, consultation_duration")
+    .select("id, specialty, specialties, consultation_duration")
     .eq("user_id", user.id)
     .maybeSingle();
 
   const specialty = doctorRow?.specialty?.trim() || null;
+  const doctorSpecialties = doctorRow?.specialties ?? (specialty ? [specialty] : []);
   const doctorId = doctorRow?.id ?? null;
 
   // ================================================================
@@ -452,6 +454,11 @@ export default async function DoctorPage() {
       label: "Secretarias",
       content: <SecretariesList secretaries={secretaryItems} invitations={invitationItems} />,
     },
+    {
+      id: "perfil",
+      label: "Mi perfil",
+      content: <DoctorProfileForm initialSpecialties={doctorSpecialties} />,
+    },
   ];
 
   return (
@@ -465,10 +472,14 @@ export default async function DoctorPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               {displayName}
             </h1>
-            {specialty ? (
-              <p className="mt-1 inline-flex rounded-full bg-zinc-100 px-3 py-0.5 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                {specialty}
-              </p>
+            {doctorSpecialties.length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {doctorSpecialties.map((s) => (
+                  <span key={s} className="inline-flex rounded-full bg-zinc-100 px-3 py-0.5 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                    {s}
+                  </span>
+                ))}
+              </div>
             ) : null}
           </div>
           <div className="flex items-center gap-3">

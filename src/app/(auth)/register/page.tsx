@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Dept { id: number; name: string }
 interface City { id: number; name: string }
+
+type Role = "doctor" | "patient";
 
 function buildSlug(name: string, email: string): string {
   const namePart = name
@@ -27,8 +29,12 @@ function buildSlug(name: string, email: string): string {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
+  const doctorIdFromUrl = searchParams.get("doctor");
+
+  const [role, setRole] = useState<Role>(doctorIdFromUrl ? "patient" : "doctor");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -39,22 +45,21 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Department / City
+  // Department / City (only for doctor)
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [selectedDept, setSelectedDept] = useState("");
   const [cities, setCities] = useState<City[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
   const [cityId, setCityId] = useState("");
 
-  // Load departments on mount
   useEffect(() => {
+    if (role !== "doctor") return;
     fetch("/api/departments")
       .then((r) => r.json())
       .then((data: Dept[]) => setDepartments(data))
       .catch(() => setDepartments([]));
-  }, []);
+  }, [role]);
 
-  // Fetch cities when department changes
   useEffect(() => {
     if (!selectedDept) { setCities([]); setCityId(""); return; }
     setLoadingCities(true);
@@ -66,6 +71,71 @@ export default function RegisterPage() {
       .finally(() => setLoadingCities(false));
   }, [selectedDept]);
 
+  async function handleDoctorSignup(userId: string) {
+    const slug = buildSlug(fullName, email);
+    const { data: tenantData, error: tenantError } = await supabase
+      .from("tenants")
+      .insert({ name: `Consultorio ${fullName}`, slug })
+      .select("id")
+      .single();
+
+    if (tenantError || !tenantData) {
+      return { error: `Falló la creación del consultorio. ${tenantError?.message ?? ""}` };
+    }
+    const tenantId = tenantData.id;
+
+    const { error: userErr } = await supabase.from("users").insert({
+      id: userId,
+      tenant_id: tenantId,
+      email,
+      full_name: fullName,
+      phone,
+      role: "doctor",
+      is_active: true,
+    });
+    if (userErr) return { error: `Falló el perfil. ${userErr.message}` };
+
+    const { error: docErr } = await supabase.from("doctors").insert({
+      tenant_id: tenantId,
+      user_id: userId,
+      specialty,
+      license_number: licenseNumber,
+      department_id: parseInt(selectedDept),
+      city_id: parseInt(cityId),
+    });
+    if (docErr) return { error: `Falló el registro del médico. ${docErr.message}` };
+    return {};
+  }
+
+  async function handlePatientSignup(userId: string) {
+    const { error: userErr } = await supabase.from("users").insert({
+      id: userId,
+      tenant_id: null,
+      email,
+      full_name: fullName,
+      phone,
+      role: "patient",
+      is_active: true,
+    });
+    if (userErr) return { error: `Falló el perfil. ${userErr.message}` };
+
+    const { data: patientRow, error: patErr } = await supabase
+      .from("patients")
+      .insert({ tenant_id: null, user_id: userId, phone })
+      .select("id")
+      .single();
+    if (patErr || !patientRow) return { error: `Falló el registro. ${patErr?.message ?? ""}` };
+
+    if (doctorIdFromUrl) {
+      await supabase.from("patient_doctors").insert({
+        patient_id: patientRow.id,
+        doctor_id: doctorIdFromUrl,
+        is_primary: true,
+      });
+    }
+    return {};
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -75,14 +145,13 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!selectedDept || !cityId) {
+    if (role === "doctor" && (!selectedDept || !cityId)) {
       setError("Departamento y ciudad son obligatorios.");
       return;
     }
 
     setIsSubmitting(true);
 
-    // 1. Create auth user
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -96,70 +165,13 @@ export default function RegisterPage() {
     }
 
     const userId = authData.user.id;
+    const result =
+      role === "doctor"
+        ? await handleDoctorSignup(userId)
+        : await handlePatientSignup(userId);
 
-    // 2. Create tenant automatically
-    const slug = buildSlug(fullName, email);
-    const { data: tenantData, error: tenantError } = await supabase
-      .from("tenants")
-      .insert({ name: `Consultorio ${fullName}`, slug })
-      .select("id")
-      .single();
-
-    if (tenantError || !tenantData) {
-      setError(
-        `Cuenta creada, pero falló la creación del consultorio. ${tenantError?.message ?? ""}`,
-      );
-      setIsSubmitting(false);
-      return;
-    }
-
-    const tenantId = tenantData.id;
-
-    // 3. Insert users record
-    const { error: insertUserError } = await supabase.from("users").insert({
-      id: userId,
-      tenant_id: tenantId,
-      email,
-      full_name: fullName,
-      phone,
-      role: "doctor",
-      is_active: true,
-    });
-
-    if (insertUserError) {
-      const parts = [
-        insertUserError.message,
-        insertUserError.code && `code: ${insertUserError.code}`,
-        insertUserError.details && `details: ${insertUserError.details}`,
-        insertUserError.hint && `hint: ${insertUserError.hint}`,
-      ].filter(Boolean);
-      setError(
-        `La cuenta se creó, pero falló el registro del perfil. ${parts.join(" · ")}`,
-      );
-      setIsSubmitting(false);
-      return;
-    }
-
-    // 4. Insert doctors record
-    const { error: insertDoctorError } = await supabase.from("doctors").insert({
-      tenant_id: tenantId,
-      user_id: userId,
-      specialty,
-      license_number: licenseNumber,
-      department_id: parseInt(selectedDept),
-      city_id: parseInt(cityId),
-    });
-
-    if (insertDoctorError) {
-      const parts = [
-        insertDoctorError.message,
-        insertDoctorError.code && `code: ${insertDoctorError.code}`,
-        insertDoctorError.details && `details: ${insertDoctorError.details}`,
-        insertDoctorError.hint && `hint: ${insertDoctorError.hint}`,
-      ].filter(Boolean);
-      setError(
-        `La cuenta se creó, pero falló el registro del médico. ${parts.join(" · ")}`,
-      );
+    if (result.error) {
+      setError(result.error);
       setIsSubmitting(false);
       return;
     }
@@ -170,7 +182,7 @@ export default function RegisterPage() {
       return;
     }
 
-    router.replace("/doctor");
+    router.replace(role === "doctor" ? "/doctor" : "/patient");
     router.refresh();
   }
 
@@ -182,168 +194,122 @@ export default function RegisterPage() {
     <main className="min-h-screen bg-zinc-50 px-4 py-10 dark:bg-zinc-950">
       <div className="mx-auto flex w-full max-w-md flex-col justify-center">
         <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="mb-8 space-y-2">
+          <div className="mb-6 space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Registro de médico
+              Crear cuenta
             </h1>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Crea tu cuenta y consultorio de forma gratuita.
+              {role === "doctor"
+                ? "Registra tu consultorio y empezá a agendar pacientes."
+                : "Registrate para agendar consultas con médicos."}
             </p>
+          </div>
+
+          <div className="mb-6 grid grid-cols-2 gap-2 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
+            <button
+              type="button"
+              onClick={() => setRole("doctor")}
+              className={`h-9 rounded-md text-sm font-medium transition ${
+                role === "doctor"
+                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
+                  : "text-zinc-600 dark:text-zinc-400"
+              }`}
+            >
+              Soy médico
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole("patient")}
+              className={`h-9 rounded-md text-sm font-medium transition ${
+                role === "patient"
+                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
+                  : "text-zinc-600 dark:text-zinc-400"
+              }`}
+            >
+              Soy paciente
+            </button>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <label htmlFor="fullName" className={labelClass}>
-                Nombre completo
-              </label>
-              <input
-                id="fullName"
-                type="text"
-                autoComplete="name"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className={inputClass}
-                placeholder="Dra. Ana García"
-              />
+              <label htmlFor="fullName" className={labelClass}>Nombre completo</label>
+              <input id="fullName" type="text" autoComplete="name" required
+                value={fullName} onChange={(e) => setFullName(e.target.value)}
+                className={inputClass} placeholder="Ana García" />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="email" className={labelClass}>
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={inputClass}
-                placeholder="tu@email.com"
-              />
+              <label htmlFor="email" className={labelClass}>Email</label>
+              <input id="email" type="email" autoComplete="email" required
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                className={inputClass} placeholder="tu@email.com" />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="phone" className={labelClass}>
-                Teléfono
-              </label>
-              <input
-                id="phone"
-                type="tel"
-                autoComplete="tel"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={inputClass}
-                placeholder="+54 11 1234 5678"
-              />
+              <label htmlFor="phone" className={labelClass}>Teléfono</label>
+              <input id="phone" type="tel" autoComplete="tel" required
+                value={phone} onChange={(e) => setPhone(e.target.value)}
+                className={inputClass} placeholder="+595 981 000 000" />
+            </div>
+
+            {role === "doctor" ? (
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="specialty" className={labelClass}>Especialidad</label>
+                  <input id="specialty" type="text" required
+                    value={specialty} onChange={(e) => setSpecialty(e.target.value)}
+                    className={inputClass} placeholder="Ej: Cardiología" />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="licenseNumber" className={labelClass}>Número de matrícula</label>
+                  <input id="licenseNumber" type="text" required
+                    value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)}
+                    className={inputClass} placeholder="Ej: 123456" />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label htmlFor="department" className={labelClass}>Departamento</label>
+                    <select id="department" required
+                      value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}
+                      className={inputClass}>
+                      <option value="">Seleccionar...</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="city" className={labelClass}>Ciudad</label>
+                    <select id="city" required
+                      value={cityId} onChange={(e) => setCityId(e.target.value)}
+                      disabled={!selectedDept || loadingCities}
+                      className={inputClass}>
+                      <option value="">
+                        {loadingCities ? "Cargando..." : !selectedDept ? "Elegí departamento" : "Seleccionar..."}
+                      </option>
+                      {cities.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
+            <div className="space-y-2">
+              <label htmlFor="password" className={labelClass}>Contraseña</label>
+              <input id="password" type="password" autoComplete="new-password" required minLength={6}
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                className={inputClass} placeholder="••••••••" />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="specialty" className={labelClass}>
-                Especialidad
-              </label>
-              <input
-                id="specialty"
-                type="text"
-                autoComplete="organization-title"
-                required
-                value={specialty}
-                onChange={(e) => setSpecialty(e.target.value)}
-                className={inputClass}
-                placeholder="Ej: Cardiología"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="licenseNumber" className={labelClass}>
-                Número de matrícula
-              </label>
-              <input
-                id="licenseNumber"
-                type="text"
-                autoComplete="off"
-                required
-                value={licenseNumber}
-                onChange={(e) => setLicenseNumber(e.target.value)}
-                className={inputClass}
-                placeholder="Ej: 123456"
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label htmlFor="department" className={labelClass}>
-                  Departamento
-                </label>
-                <select
-                  id="department"
-                  required
-                  value={selectedDept}
-                  onChange={(e) => setSelectedDept(e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Seleccionar...</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="city" className={labelClass}>
-                  Ciudad
-                </label>
-                <select
-                  id="city"
-                  required
-                  value={cityId}
-                  onChange={(e) => setCityId(e.target.value)}
-                  disabled={!selectedDept || loadingCities}
-                  className={inputClass}
-                >
-                  <option value="">
-                    {loadingCities ? "Cargando..." : !selectedDept ? "Elegí departamento" : "Seleccionar..."}
-                  </option>
-                  {cities.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="password" className={labelClass}>
-                Contraseña
-              </label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={inputClass}
-                placeholder="••••••••"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="confirmPassword" className={labelClass}>
-                Confirmar contraseña
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={6}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={inputClass}
-                placeholder="••••••••"
-              />
+              <label htmlFor="confirmPassword" className={labelClass}>Confirmar contraseña</label>
+              <input id="confirmPassword" type="password" autoComplete="new-password" required minLength={6}
+                value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                className={inputClass} placeholder="••••••••" />
             </div>
 
             {error ? (
@@ -352,29 +318,20 @@ export default function RegisterPage() {
               </p>
             ) : null}
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-zinc-900 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-            >
+            <button type="submit" disabled={isSubmitting}
+              className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-zinc-900 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300">
               {isSubmitting ? "Creando cuenta..." : "Crear cuenta gratis"}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">
             ¿Ya tienes cuenta?{" "}
-            <Link
-              href="/login"
-              className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-800 dark:text-zinc-100 dark:decoration-zinc-600"
-            >
+            <Link href="/login" className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-800 dark:text-zinc-100 dark:decoration-zinc-600">
               Inicia sesión
             </Link>
           </p>
           <p className="mt-3 text-center text-sm text-zinc-600 dark:text-zinc-400">
-            <Link
-              href="/buscar"
-              className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-800 dark:text-zinc-100 dark:decoration-zinc-600"
-            >
+            <Link href="/buscar" className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-800 dark:text-zinc-100 dark:decoration-zinc-600">
               Buscar médico
             </Link>
           </p>
