@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createAdminReadClient } from "@/lib/supabase/admin-read";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { NavIcons } from "@/components/layout/nav-icons";
+import { StatCard } from "@/components/ui/stat-card";
 import { AppointmentsList } from "@/components/patient/appointments-list";
 import { ProfileForm } from "@/components/patient/profile-form";
 import { DoctorSearch } from "@/components/patient/doctor-search";
@@ -228,36 +229,78 @@ export default async function PatientPage() {
   };
 
   const nextAppt = apptItems.find((a) => a.status === "scheduled" || a.status === "confirmed");
+  const activeRx = rxItems.filter((r) => r.status === "active");
+  const nextApptLabel = nextAppt ? formatDate(nextAppt.startsAt) : "—";
 
-  const metrics = [
-    {
-      label: "Mis citas",
-      value: apptItems.length,
-      hint: nextAppt ? "próxima programada" : "sin próximas",
-      icon: NavIcons.calendar,
-      tone: "brand" as const,
-    },
-    {
-      label: "Recetas activas",
-      value: rxItems.filter((r) => r.status === "active").length,
-      icon: NavIcons.prescription,
-      tone: "success" as const,
-    },
-    {
-      label: "Médicos vinculados",
-      value: myDoctors.length,
-      icon: NavIcons.stethoscope,
-      tone: "default" as const,
-    },
-    {
-      label: "Recetas totales",
-      value: rxItems.length,
-      icon: NavIcons.list,
-      tone: "default" as const,
-    },
-  ];
+  const dashboardContent = (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Mis citas"
+          value={apptItems.length}
+          hint={nextAppt ? "próxima programada" : "sin próximas"}
+          icon={NavIcons.calendar}
+          tone="brand"
+        />
+        <StatCard
+          label="Recetas activas"
+          value={activeRx.length}
+          icon={NavIcons.prescription}
+          tone="success"
+        />
+        <StatCard
+          label="Médicos vinculados"
+          value={myDoctors.length}
+          icon={NavIcons.stethoscope}
+          tone="default"
+        />
+        <StatCard
+          label="Recetas totales"
+          value={rxItems.length}
+          icon={NavIcons.list}
+          tone="default"
+        />
+      </div>
+
+      {nextAppt ? (
+        <div className="rounded-xl border border-[#2563EB]/20 bg-[#EFF6FF] p-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#2563EB]">Próxima cita</p>
+          <p className="mt-2 text-lg font-semibold text-[#1E293B]">{nextApptLabel}</p>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Dr. {nextAppt.doctorName}
+            {nextAppt.officeName ? ` · ${nextAppt.officeName}` : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {activeRx.length > 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+          <h2 className="text-sm font-semibold text-[#1E293B]">Recetas recientes</h2>
+          <ul className="mt-3 space-y-2">
+            {activeRx.slice(0, 3).map((rx) => (
+              <li key={rx.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                <div>
+                  <p className="font-medium text-[#1E293B]">Dr. {rx.doctorName}</p>
+                  <p className="text-xs text-[#64748B]">{formatDate(rx.createdAt)}</p>
+                </div>
+                <span className="rounded-full bg-[#ECFDF5] px-2.5 py-0.5 text-xs font-medium text-[#10B981]">
+                  Activa
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
 
   const nav = [
+    {
+      id: "dashboard",
+      label: "Mi Dashboard",
+      icon: NavIcons.chart,
+      content: dashboardContent,
+    },
     {
       id: "citas",
       label: `Mis citas${apptItems.length > 0 ? ` (${apptItems.length})` : ""}`,
@@ -350,18 +393,16 @@ export default async function PatientPage() {
 
   if (!patientId) {
     return (
-      <DashboardShell
-        brand="Médico SaaS"
+      <DashboardLayout
         roleLabel="Paciente"
         userName={displayName}
-        userEmail={userProfile?.email ?? undefined}
         nav={[
           {
             id: "none",
             label: "Perfil pendiente",
             icon: NavIcons.user,
             content: (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
                 No hay perfil de paciente vinculado a tu cuenta.
               </div>
             ),
@@ -372,13 +413,10 @@ export default async function PatientPage() {
   }
 
   return (
-    <DashboardShell
-      brand="Médico SaaS"
+    <DashboardLayout
       roleLabel="Paciente"
       userName={displayName}
-      userEmail={userProfile?.email ?? undefined}
       nav={nav}
-      metrics={metrics}
     />
   );
 }

@@ -4,8 +4,9 @@ import { getRolePath } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminReadClient } from "@/lib/supabase/admin-read";
 import { SecretariesList } from "@/components/doctor/secretaries-list";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { NavIcons } from "@/components/layout/nav-icons";
+import { StatCard } from "@/components/ui/stat-card";
 import { KanbanBoard } from "@/components/doctor/kanban-board";
 import { PatientsList } from "@/components/doctor/patients-list";
 import { OfficesList } from "@/components/doctor/offices-list";
@@ -509,48 +510,85 @@ export default async function DoctorPage() {
   }
 
   // ================================================================
-  // Metrics
+  // Dashboard metrics
   // ================================================================
   const pendingToday = kanbanCards.filter(
     (c) => c.status === "scheduled" || c.status === "confirmed",
   ).length;
-  const attendedToday = kanbanCards.filter((c) => c.status === "attended").length;
-  const metrics = [
-    {
-      label: "Citas hoy",
-      value: kanbanCards.length,
-      hint: `${pendingToday} pendientes`,
-      icon: NavIcons.calendar,
-      tone: "brand" as const,
-    },
-    {
-      label: "Atendidas hoy",
-      value: attendedToday,
-      icon: NavIcons.heart,
-      tone: "success" as const,
-    },
-    {
-      label: "Pacientes totales",
-      value: patientItems.length,
-      icon: NavIcons.users,
-      tone: "default" as const,
-    },
-    {
-      label: "Historias clínicas",
-      value: Object.values(chHistoryByPatientId).reduce((a, b) => a + b.length, 0),
-      hint: "total registradas",
-      icon: NavIcons.history,
-      tone: "default" as const,
-    },
-  ];
+
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+  const thisMonthClinicalRecords = Object.values(chHistoryByPatientId)
+    .flat()
+    .filter((v) => new Date(v.createdAt).getTime() >= startOfMonth.getTime()).length;
+
+  const nextUpcoming = kanbanCards
+    .filter((c) => c.status === "scheduled" || c.status === "confirmed")
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0];
+  const nextApptLabel = nextUpcoming
+    ? new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" }).format(
+        new Date(nextUpcoming.startsAt),
+      )
+    : "—";
+  const nextApptHint = nextUpcoming ? nextUpcoming.patientName : "sin citas próximas";
+
+  const dashboardContent = (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Citas hoy"
+          value={kanbanCards.length}
+          hint={`${pendingToday} pendientes`}
+          icon={NavIcons.calendar}
+          tone="brand"
+        />
+        <StatCard
+          label="Pacientes totales"
+          value={patientItems.length}
+          icon={NavIcons.users}
+          tone="default"
+        />
+        <StatCard
+          label="Consultas este mes"
+          value={thisMonthClinicalRecords}
+          hint="historias clínicas"
+          icon={NavIcons.history}
+          tone="success"
+        />
+        <StatCard
+          label="Próxima cita"
+          value={nextApptLabel}
+          hint={nextApptHint}
+          icon={NavIcons.clock}
+          tone="warning"
+        />
+      </div>
+
+      {kanbanCards.length > 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+          <h2 className="text-sm font-semibold text-[#1E293B]">Agenda de hoy</h2>
+          <p className="mt-1 text-xs text-[#64748B]">
+            {kanbanCards.length} {kanbanCards.length === 1 ? "cita programada" : "citas programadas"}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
 
   // ================================================================
   // Build nav
   // ================================================================
   const nav = [
     {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: NavIcons.chart,
+      content: dashboardContent,
+    },
+    {
       id: "agenda",
-      label: "Agenda de hoy",
+      label: "Agenda",
       icon: NavIcons.calendar,
       content: <KanbanBoard appointments={kanbanCards} />,
     },
@@ -568,6 +606,17 @@ export default async function DoctorPage() {
         <ClinicalRecordsTab
           patients={chPatients}
           historyByPatientId={chHistoryByPatientId}
+        />
+      ),
+    },
+    {
+      id: "recetas",
+      label: "Recetas",
+      icon: NavIcons.prescription,
+      content: (
+        <PrescriptionTab
+          patients={rxPatients}
+          appointments={rxAppointments}
         />
       ),
     },
@@ -591,17 +640,6 @@ export default async function DoctorPage() {
       ),
     },
     {
-      id: "receta",
-      label: "Nueva receta",
-      icon: NavIcons.prescription,
-      content: (
-        <PrescriptionTab
-          patients={rxPatients}
-          appointments={rxAppointments}
-        />
-      ),
-    },
-    {
       id: "secretarias",
       label: "Secretarias",
       icon: NavIcons.briefcase,
@@ -609,7 +647,7 @@ export default async function DoctorPage() {
     },
     {
       id: "perfil",
-      label: "Mi perfil",
+      label: "Mi Perfil",
       icon: NavIcons.settings,
       content: <DoctorProfileForm initialSpecialties={doctorSpecialties} />,
     },
@@ -617,11 +655,9 @@ export default async function DoctorPage() {
 
   if (!doctorId) {
     return (
-      <DashboardShell
-        brand="Médico SaaS"
+      <DashboardLayout
         roleLabel="Médico"
         userName={displayName}
-        userEmail={profile?.email ?? undefined}
         userSubtitle={specialty}
         nav={[
           {
@@ -629,7 +665,7 @@ export default async function DoctorPage() {
             label: "Perfil pendiente",
             icon: NavIcons.settings,
             content: (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
                 No hay un perfil de médico vinculado a tu cuenta.
               </div>
             ),
@@ -645,14 +681,11 @@ export default async function DoctorPage() {
       : specialty ?? formatTodayHeading();
 
   return (
-    <DashboardShell
-      brand="Médico SaaS"
+    <DashboardLayout
       roleLabel="Médico"
       userName={displayName}
-      userEmail={profile?.email ?? undefined}
       userSubtitle={subtitle}
       nav={nav}
-      metrics={metrics}
     />
   );
 }
