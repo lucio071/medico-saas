@@ -3,9 +3,9 @@ import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminReadClient } from "@/lib/supabase/admin-read";
-import { LogoutButton } from "@/components/auth/logout-button";
 import { SecretariesList } from "@/components/doctor/secretaries-list";
-import { DoctorTabs } from "@/components/doctor/doctor-tabs";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { NavIcons } from "@/components/layout/nav-icons";
 import { KanbanBoard } from "@/components/doctor/kanban-board";
 import { PatientsList } from "@/components/doctor/patients-list";
 import { OfficesList } from "@/components/doctor/offices-list";
@@ -509,27 +509,78 @@ export default async function DoctorPage() {
   }
 
   // ================================================================
-  // Build tabs
+  // Metrics
   // ================================================================
-  const tabs = [
+  const pendingToday = kanbanCards.filter(
+    (c) => c.status === "scheduled" || c.status === "confirmed",
+  ).length;
+  const attendedToday = kanbanCards.filter((c) => c.status === "attended").length;
+  const metrics = [
+    {
+      label: "Citas hoy",
+      value: kanbanCards.length,
+      hint: `${pendingToday} pendientes`,
+      icon: NavIcons.calendar,
+      tone: "brand" as const,
+    },
+    {
+      label: "Atendidas hoy",
+      value: attendedToday,
+      icon: NavIcons.heart,
+      tone: "success" as const,
+    },
+    {
+      label: "Pacientes totales",
+      value: patientItems.length,
+      icon: NavIcons.users,
+      tone: "default" as const,
+    },
+    {
+      label: "Historias clínicas",
+      value: Object.values(chHistoryByPatientId).reduce((a, b) => a + b.length, 0),
+      hint: "total registradas",
+      icon: NavIcons.history,
+      tone: "default" as const,
+    },
+  ];
+
+  // ================================================================
+  // Build nav
+  // ================================================================
+  const nav = [
     {
       id: "agenda",
       label: "Agenda de hoy",
+      icon: NavIcons.calendar,
       content: <KanbanBoard appointments={kanbanCards} />,
     },
     {
       id: "pacientes",
       label: "Pacientes",
+      icon: NavIcons.users,
       content: <PatientsList patients={patientItems} departments={(departmentsList ?? []).map((d) => ({ id: d.id, name: d.name }))} />,
+    },
+    {
+      id: "historia",
+      label: "Historia Clínica",
+      icon: NavIcons.history,
+      content: (
+        <ClinicalRecordsTab
+          patients={chPatients}
+          historyByPatientId={chHistoryByPatientId}
+        />
+      ),
     },
     {
       id: "consultorios",
       label: "Consultorios",
+      icon: NavIcons.office,
       content: <OfficesList offices={officeItems} />,
     },
     {
       id: "horarios",
       label: "Horarios",
+      icon: NavIcons.clock,
       content: (
         <SchedulesManager
           offices={officeItems.map((o) => ({ id: o.id, name: o.name }))}
@@ -542,6 +593,7 @@ export default async function DoctorPage() {
     {
       id: "receta",
       label: "Nueva receta",
+      icon: NavIcons.prescription,
       content: (
         <PrescriptionTab
           patients={rxPatients}
@@ -550,66 +602,57 @@ export default async function DoctorPage() {
       ),
     },
     {
-      id: "historia",
-      label: "Historia Clínica",
-      content: (
-        <ClinicalRecordsTab
-          patients={chPatients}
-          historyByPatientId={chHistoryByPatientId}
-        />
-      ),
-    },
-    {
       id: "secretarias",
       label: "Secretarias",
+      icon: NavIcons.briefcase,
       content: <SecretariesList secretaries={secretaryItems} invitations={invitationItems} />,
     },
     {
       id: "perfil",
       label: "Mi perfil",
+      icon: NavIcons.settings,
       content: <DoctorProfileForm initialSpecialties={doctorSpecialties} />,
     },
   ];
 
-  return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Panel del médico
-            </p>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              {displayName}
-            </h1>
-            {doctorSpecialties.length > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {doctorSpecialties.map((s) => (
-                  <span key={s} className="inline-flex rounded-full bg-zinc-100 px-3 py-0.5 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                    {s}
-                  </span>
-                ))}
+  if (!doctorId) {
+    return (
+      <DashboardShell
+        brand="Médico SaaS"
+        roleLabel="Médico"
+        userName={displayName}
+        userEmail={profile?.email ?? undefined}
+        userSubtitle={specialty}
+        nav={[
+          {
+            id: "missing",
+            label: "Perfil pendiente",
+            icon: NavIcons.settings,
+            content: (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+                No hay un perfil de médico vinculado a tu cuenta.
               </div>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-3">
-            <p className="text-sm capitalize text-zinc-500 dark:text-zinc-400">
-              {formatTodayHeading()}
-            </p>
-            <LogoutButton />
-          </div>
-        </div>
-      </header>
+            ),
+          },
+        ]}
+      />
+    );
+  }
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
-        {!doctorId ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            No hay un perfil de médico vinculado a tu cuenta.
-          </div>
-        ) : (
-          <DoctorTabs tabs={tabs} />
-        )}
-      </main>
-    </div>
+  const subtitle =
+    doctorSpecialties.length > 0
+      ? doctorSpecialties.join(" · ")
+      : specialty ?? formatTodayHeading();
+
+  return (
+    <DashboardShell
+      brand="Médico SaaS"
+      roleLabel="Médico"
+      userName={displayName}
+      userEmail={profile?.email ?? undefined}
+      userSubtitle={subtitle}
+      nav={nav}
+      metrics={metrics}
+    />
   );
 }

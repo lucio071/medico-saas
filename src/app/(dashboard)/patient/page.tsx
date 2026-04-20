@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createAdminReadClient } from "@/lib/supabase/admin-read";
-import { LogoutButton } from "@/components/auth/logout-button";
-import { DoctorTabs } from "@/components/doctor/doctor-tabs";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { NavIcons } from "@/components/layout/nav-icons";
 import { AppointmentsList } from "@/components/patient/appointments-list";
 import { ProfileForm } from "@/components/patient/profile-form";
 import { DoctorSearch } from "@/components/patient/doctor-search";
@@ -227,15 +227,47 @@ export default async function PatientPage() {
     cancelled: { label: "Cancelada", style: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
   };
 
-  const tabs = [
+  const nextAppt = apptItems.find((a) => a.status === "scheduled" || a.status === "confirmed");
+
+  const metrics = [
+    {
+      label: "Mis citas",
+      value: apptItems.length,
+      hint: nextAppt ? "próxima programada" : "sin próximas",
+      icon: NavIcons.calendar,
+      tone: "brand" as const,
+    },
+    {
+      label: "Recetas activas",
+      value: rxItems.filter((r) => r.status === "active").length,
+      icon: NavIcons.prescription,
+      tone: "success" as const,
+    },
+    {
+      label: "Médicos vinculados",
+      value: myDoctors.length,
+      icon: NavIcons.stethoscope,
+      tone: "default" as const,
+    },
+    {
+      label: "Recetas totales",
+      value: rxItems.length,
+      icon: NavIcons.list,
+      tone: "default" as const,
+    },
+  ];
+
+  const nav = [
     {
       id: "citas",
-      label: `Mis citas (${apptItems.length})`,
+      label: `Mis citas${apptItems.length > 0 ? ` (${apptItems.length})` : ""}`,
+      icon: NavIcons.calendar,
       content: <AppointmentsList appointments={apptItems} />,
     },
     {
       id: "recetas",
-      label: `Mis recetas (${rxItems.length})`,
+      label: `Mis recetas${rxItems.length > 0 ? ` (${rxItems.length})` : ""}`,
+      icon: NavIcons.prescription,
       content: rxItems.length === 0 ? (
         <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">No hay recetas.</div>
       ) : (
@@ -261,7 +293,8 @@ export default async function PatientPage() {
     },
     {
       id: "medicos",
-      label: `Mis médicos (${myDoctors.length})`,
+      label: `Mis médicos${myDoctors.length > 0 ? ` (${myDoctors.length})` : ""}`,
+      icon: NavIcons.stethoscope,
       content: myDoctors.length === 0 ? (
         <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
           No tenés médicos vinculados. Buscá uno en la pestaña &quot;Buscar médico&quot;.
@@ -293,6 +326,7 @@ export default async function PatientPage() {
     {
       id: "buscar",
       label: "Buscar médico",
+      icon: NavIcons.search,
       content: (
         <DoctorSearch
           departments={(departmentsList ?? []).map((d) => ({ id: d.id, name: d.name }))}
@@ -304,6 +338,7 @@ export default async function PatientPage() {
     {
       id: "perfil",
       label: "Mi perfil",
+      icon: NavIcons.settings,
       content: (
         <ProfileForm
           profile={profileData}
@@ -313,29 +348,37 @@ export default async function PatientPage() {
     },
   ];
 
-  return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-6">
-          <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Panel del paciente</p>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Hola, {displayName}
-            </h1>
-          </div>
-          <LogoutButton />
-        </div>
-      </header>
+  if (!patientId) {
+    return (
+      <DashboardShell
+        brand="Médico SaaS"
+        roleLabel="Paciente"
+        userName={displayName}
+        userEmail={userProfile?.email ?? undefined}
+        nav={[
+          {
+            id: "none",
+            label: "Perfil pendiente",
+            icon: NavIcons.user,
+            content: (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+                No hay perfil de paciente vinculado a tu cuenta.
+              </div>
+            ),
+          },
+        ]}
+      />
+    );
+  }
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
-        {!patientId ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            No hay perfil de paciente vinculado a tu cuenta.
-          </div>
-        ) : (
-          <DoctorTabs tabs={tabs} />
-        )}
-      </main>
-    </div>
+  return (
+    <DashboardShell
+      brand="Médico SaaS"
+      roleLabel="Paciente"
+      userName={displayName}
+      userEmail={userProfile?.email ?? undefined}
+      nav={nav}
+      metrics={metrics}
+    />
   );
 }

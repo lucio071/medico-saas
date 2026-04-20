@@ -3,8 +3,8 @@ import { getCurrentUserRole, requireAuth } from "@/lib/auth/server";
 import { getRolePath } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminReadClient } from "@/lib/supabase/admin-read";
-import { LogoutButton } from "@/components/auth/logout-button";
-import { DoctorTabs } from "@/components/doctor/doctor-tabs";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { NavIcons } from "@/components/layout/nav-icons";
 import { PatientsList } from "@/components/doctor/patients-list";
 import { ScheduleGrid } from "@/components/secretary/schedule-grid";
 import { SlotBookingForm } from "@/components/secretary/slot-booking-form";
@@ -74,22 +74,24 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
 
   if (!tenantId || assignedDoctors.length === 0) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-        <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6">
-            <div>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Panel de secretaria</p>
-              <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{displayName}</h1>
-            </div>
-            <LogoutButton />
-          </div>
-        </header>
-        <main className="mx-auto max-w-7xl px-4 py-8">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            No estás asignada a ningún médico. Contacta al administrador.
-          </div>
-        </main>
-      </div>
+      <DashboardShell
+        brand="Médico SaaS"
+        roleLabel="Secretaria"
+        userName={displayName}
+        userEmail={secUser?.email ?? undefined}
+        nav={[
+          {
+            id: "none",
+            label: "Sin asignación",
+            icon: NavIcons.briefcase,
+            content: (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+                No estás asignada a ningún médico. Contacta al administrador.
+              </div>
+            ),
+          },
+        ]}
+      />
     );
   }
 
@@ -323,12 +325,48 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
   }
 
   // ================================================================
-  // Build tabs
+  // Metrics
   // ================================================================
-  const tabs = [
+  const pendingAppts = gridAppointments.filter(
+    (a) => a.status === "scheduled" || a.status === "confirmed",
+  ).length;
+
+  const metrics = [
+    {
+      label: "Citas del día",
+      value: gridAppointments.length,
+      hint: `${pendingAppts} pendientes`,
+      icon: NavIcons.calendar,
+      tone: "brand" as const,
+    },
+    {
+      label: "Lista de espera",
+      value: waitlistItems.length,
+      icon: NavIcons.clock,
+      tone: "warning" as const,
+    },
+    {
+      label: "Pacientes",
+      value: patientItems.length,
+      icon: NavIcons.users,
+      tone: "default" as const,
+    },
+    {
+      label: "Médicos asignados",
+      value: assignedDoctors.length,
+      icon: NavIcons.stethoscope,
+      tone: "default" as const,
+    },
+  ];
+
+  // ================================================================
+  // Build nav
+  // ================================================================
+  const nav = [
     {
       id: "agenda",
       label: "Agenda del día",
+      icon: NavIcons.calendar,
       content: (
         <div className="space-y-4">
           <DateNav currentDate={currentDate} />
@@ -345,6 +383,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     {
       id: "pacientes",
       label: "Pacientes",
+      icon: NavIcons.users,
       content: (
         <PatientsList
           patients={patientItems}
@@ -355,6 +394,7 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     {
       id: "cita",
       label: "Nueva cita",
+      icon: NavIcons.plus,
       content: (
         <SlotBookingForm
           doctors={assignedDoctors}
@@ -364,7 +404,8 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     },
     {
       id: "espera",
-      label: `Lista de espera (${waitlistItems.length})`,
+      label: `Lista de espera${waitlistItems.length > 0 ? ` (${waitlistItems.length})` : ""}`,
+      icon: NavIcons.list,
       content: (
         <WaitlistTable
           items={waitlistItems}
@@ -375,35 +416,19 @@ export default async function SecretaryPage({ searchParams }: PageProps) {
     },
   ];
 
-  return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Panel de secretaria</p>
-            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              {displayName}
-            </h1>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {assignedDoctors.map((d) => (
-                <span
-                  key={d.id}
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                  style={{ backgroundColor: `${d.color}15`, color: d.color }}
-                >
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
-                  Dr. {d.name}
-                </span>
-              ))}
-            </div>
-          </div>
-          <LogoutButton />
-        </div>
-      </header>
+  const doctorSubtitle = assignedDoctors.length === 1
+    ? `Dr. ${assignedDoctors[0].name}`
+    : `${assignedDoctors.length} médicos asignados`;
 
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        <DoctorTabs tabs={tabs} />
-      </main>
-    </div>
+  return (
+    <DashboardShell
+      brand="Médico SaaS"
+      roleLabel="Secretaria"
+      userName={displayName}
+      userEmail={secUser?.email ?? undefined}
+      userSubtitle={doctorSubtitle}
+      nav={nav}
+      metrics={metrics}
+    />
   );
 }
