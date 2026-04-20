@@ -3,7 +3,9 @@
 import { useMemo, useState, useTransition } from "react";
 import {
   createClinicalRecord,
+  createPrescriptionFromRecord,
   type ClinicalRecordInput,
+  type MedicationItem,
 } from "@/app/actions/clinical-records";
 
 export interface PatientSummary {
@@ -311,6 +313,11 @@ function Vital({ label, value }: { label: string; value: string }) {
   );
 }
 
+type VisitStep =
+  | { kind: "form" }
+  | { kind: "ask"; savedVisit: ClinicalVisit }
+  | { kind: "rx"; savedVisit: ClinicalVisit };
+
 function NewVisitForm({
   patient,
   onCancel,
@@ -320,6 +327,8 @@ function NewVisitForm({
   onCancel: () => void;
   onSuccess: (visit: ClinicalVisit) => void;
 }) {
+  const [step, setStep] = useState<VisitStep>({ kind: "form" });
+
   const [chiefComplaint, setChiefComplaint] = useState("");
   const [anamnesis, setAnamnesis] = useState("");
   const [physicalExam, setPhysicalExam] = useState("");
@@ -395,7 +404,7 @@ function NewVisitForm({
         oxygen_saturation: input.vital_signs?.oxygen_saturation ?? null,
       };
 
-      onSuccess({
+      const savedVisit: ClinicalVisit = {
         id: res.id,
         createdAt: new Date().toISOString(),
         chiefComplaint: input.chief_complaint ?? null,
@@ -407,8 +416,32 @@ function NewVisitForm({
         notes: input.notes ?? null,
         nextVisitDate: input.next_visit_date ?? null,
         vitals,
-      });
+      };
+
+      setStep({ kind: "ask", savedVisit });
     });
+  }
+
+  if (step.kind === "ask") {
+    return (
+      <AskPrescription
+        patient={patient}
+        savedVisit={step.savedVisit}
+        onEmit={() => setStep({ kind: "rx", savedVisit: step.savedVisit })}
+        onFinish={() => onSuccess(step.savedVisit)}
+      />
+    );
+  }
+
+  if (step.kind === "rx") {
+    return (
+      <PrescriptionForm
+        patient={patient}
+        savedVisit={step.savedVisit}
+        onCancel={() => onSuccess(step.savedVisit)}
+        onSuccess={() => onSuccess(step.savedVisit)}
+      />
+    );
   }
 
   const inputCls =
@@ -585,6 +618,239 @@ function NewVisitForm({
           className="inline-flex h-10 items-center rounded-lg bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
         >
           {isPending ? "Guardando..." : "Guardar consulta"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AskPrescription({
+  patient,
+  savedVisit,
+  onEmit,
+  onFinish,
+}: {
+  patient: PatientSummary;
+  savedVisit: ClinicalVisit;
+  onEmit: () => void;
+  onFinish: () => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-green-200 bg-green-50 p-5 dark:border-green-900/60 dark:bg-green-950/30">
+        <p className="text-sm font-medium text-green-800 dark:text-green-200">
+          ✓ Consulta guardada correctamente
+        </p>
+        <p className="mt-1 text-sm text-green-700 dark:text-green-300">
+          Paciente: {patient.fullName}
+          {savedVisit.diagnosis ? ` · Diagnóstico: ${savedVisit.diagnosis}` : ""}
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          ¿Desea emitir una receta para esta consulta?
+        </h3>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          Podrás indicar los medicamentos, dosis y duración del tratamiento.
+        </p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={onEmit}
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            Sí, emitir receta
+          </button>
+          <button
+            type="button"
+            onClick={onFinish}
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-300 px-5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            No, terminar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PrescriptionForm({
+  patient,
+  savedVisit,
+  onCancel,
+  onSuccess,
+}: {
+  patient: PatientSummary;
+  savedVisit: ClinicalVisit;
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const [diagnosis, setDiagnosis] = useState(savedVisit.diagnosis ?? "");
+  const [instructions, setInstructions] = useState("");
+  const [meds, setMeds] = useState<MedicationItem[]>([
+    { name: "", dose: "", frequency: "", duration: "" },
+  ]);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function updateMed(idx: number, field: keyof MedicationItem, value: string) {
+    setMeds((prev) => prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m)));
+  }
+
+  function addMed() {
+    setMeds((prev) => [...prev, { name: "", dose: "", frequency: "", duration: "" }]);
+  }
+
+  function removeMed(idx: number) {
+    setMeds((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const cleanMeds = meds.filter((m) => m.name.trim().length > 0);
+    if (cleanMeds.length === 0) {
+      setError("Agregá al menos un medicamento con nombre.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createPrescriptionFromRecord({
+        clinical_record_id: savedVisit.id,
+        diagnosis: diagnosis.trim() || null,
+        medications: cleanMeds,
+        instructions: instructions.trim() || null,
+      });
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      onSuccess();
+    });
+  }
+
+  const inputCls =
+    "h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
+  const textareaCls =
+    "min-h-20 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
+  const labelCls = "text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400";
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          Nueva receta
+        </h2>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          Paciente: {patient.fullName}
+        </p>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="space-y-1.5">
+          <label className={labelCls}>Diagnóstico</label>
+          <input
+            value={diagnosis}
+            onChange={(e) => setDiagnosis(e.target.value)}
+            className={inputCls}
+            placeholder="Diagnóstico"
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className={labelCls}>Medicamentos</label>
+            <button
+              type="button"
+              onClick={addMed}
+              className="text-xs font-medium text-zinc-700 underline hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+            >
+              + Agregar medicamento
+            </button>
+          </div>
+
+          {meds.map((m, idx) => (
+            <div
+              key={idx}
+              className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Medicamento #{idx + 1}
+                </span>
+                {meds.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeMed(idx)}
+                    className="text-xs text-red-600 hover:text-red-800 dark:text-red-400"
+                  >
+                    Eliminar
+                  </button>
+                ) : null}
+              </div>
+              <input
+                value={m.name}
+                onChange={(e) => updateMed(idx, "name", e.target.value)}
+                className={inputCls}
+                placeholder="Nombre (Ej: Amoxicilina 500mg)"
+              />
+              <div className="grid gap-2 sm:grid-cols-3">
+                <input
+                  value={m.dose}
+                  onChange={(e) => updateMed(idx, "dose", e.target.value)}
+                  className={inputCls}
+                  placeholder="Dosis (Ej: 1 comprimido)"
+                />
+                <input
+                  value={m.frequency}
+                  onChange={(e) => updateMed(idx, "frequency", e.target.value)}
+                  className={inputCls}
+                  placeholder="Frecuencia (Ej: cada 8 hs)"
+                />
+                <input
+                  value={m.duration}
+                  onChange={(e) => updateMed(idx, "duration", e.target.value)}
+                  className={inputCls}
+                  placeholder="Duración (Ej: 7 días)"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className={labelCls}>Instrucciones generales</label>
+          <textarea
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            className={textareaCls}
+            placeholder="Tomar con comidas, evitar alcohol, etc."
+          />
+        </div>
+      </div>
+
+      {error ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex h-10 items-center rounded-lg border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Omitir receta
+        </button>
+        <button
+          type="submit"
+          disabled={isPending}
+          className="inline-flex h-10 items-center rounded-lg bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          {isPending ? "Guardando..." : "Guardar receta"}
         </button>
       </div>
     </form>

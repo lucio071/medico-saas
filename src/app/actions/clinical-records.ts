@@ -3,6 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/types/database";
+
+export interface MedicationItem {
+  name: string;
+  dose: string;
+  frequency: string;
+  duration: string;
+}
+
+export interface PrescriptionFromRecordInput {
+  clinical_record_id: string;
+  diagnosis?: string | null;
+  medications: MedicationItem[];
+  instructions?: string | null;
+}
 
 export interface VitalSignsInput {
   weight?: number | null;
@@ -105,4 +120,65 @@ export async function createClinicalRecord(
 
   revalidatePath("/doctor");
   return { id: recordRow.id };
+}
+
+export async function createPrescriptionFromRecord(
+  input: PrescriptionFromRecordInput,
+): Promise<{ error?: string; id?: string }> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "No autenticado" };
+
+  const cleanMeds = input.medications
+    .map((m) => ({
+      name: m.name.trim(),
+      dose: m.dose.trim(),
+      frequency: m.frequency.trim(),
+      duration: m.duration.trim(),
+    }))
+    .filter((m) => m.name.length > 0);
+
+  if (cleanMeds.length === 0) {
+    return { error: "Agregá al menos un medicamento con nombre" };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: record } = await admin
+    .from("clinical_records")
+    .select("id, tenant_id, doctor_id, patient_id, appointment_id")
+    .eq("id", input.clinical_record_id)
+    .maybeSingle();
+
+  if (!record) return { error: "Consulta no encontrada" };
+
+  const { data: doctorRow } = await admin
+    .from("doctors")
+    .select("id")
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+
+  if (!doctorRow || doctorRow.id !== record.doctor_id) {
+    return { error: "No autorizado" };
+  }
+
+  const { data: rxRow, error: rxErr } = await admin
+    .from("prescriptions")
+    .insert({
+      tenant_id: record.tenant_id,
+      doctor_id: record.doctor_id,
+      patient_id: record.patient_id,
+      appointment_id: record.appointment_id ?? null,
+      clinical_record_id: record.id,
+      diagnosis: input.diagnosis?.trim() || null,
+      medications: cleanMeds as unknown as Json,
+      instructions: input.instructions?.trim() || "",
+    })
+    .select("id")
+    .single();
+
+  if (rxErr || !rxRow) return { error: rxErr?.message ?? "Error al crear receta" };
+
+  revalidatePath("/doctor");
+  return { id: rxRow.id };
 }

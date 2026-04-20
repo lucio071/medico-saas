@@ -520,6 +520,7 @@ export type Database = {
           id: string;
           tenant_id: string;
           appointment_id: string | null;
+          clinical_record_id: string | null;
           doctor_id: string;
           patient_id: string;
           diagnosis: string | null;
@@ -534,6 +535,7 @@ export type Database = {
           id?: string;
           tenant_id: string;
           appointment_id?: string | null;
+          clinical_record_id?: string | null;
           doctor_id: string;
           patient_id: string;
           diagnosis?: string | null;
@@ -548,6 +550,7 @@ export type Database = {
           id?: string;
           tenant_id?: string;
           appointment_id?: string | null;
+          clinical_record_id?: string | null;
           doctor_id?: string;
           patient_id?: string;
           diagnosis?: string | null;
