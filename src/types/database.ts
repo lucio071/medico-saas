@@ -694,6 +694,133 @@ export type Database = {
         };
         Relationships: [];
       };
+      clinical_records: {
+        Row: {
+          id: string;
+          appointment_id: string | null;
+          doctor_id: string;
+          patient_id: string;
+          tenant_id: string;
+          chief_complaint: string | null;
+          anamnesis: string | null;
+          physical_exam: string | null;
+          diagnosis: string | null;
+          cie10_code: string | null;
+          treatment: string | null;
+          notes: string | null;
+          next_visit_date: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          appointment_id?: string | null;
+          doctor_id: string;
+          patient_id: string;
+          tenant_id: string;
+          chief_complaint?: string | null;
+          anamnesis?: string | null;
+          physical_exam?: string | null;
+          diagnosis?: string | null;
+          cie10_code?: string | null;
+          treatment?: string | null;
+          notes?: string | null;
+          next_visit_date?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          appointment_id?: string | null;
+          doctor_id?: string;
+          patient_id?: string;
+          tenant_id?: string;
+          chief_complaint?: string | null;
+          anamnesis?: string | null;
+          physical_exam?: string | null;
+          diagnosis?: string | null;
+          cie10_code?: string | null;
+          treatment?: string | null;
+          notes?: string | null;
+          next_visit_date?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinical_records_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clinical_records_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clinical_records_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clinical_records_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      vital_signs: {
+        Row: {
+          id: string;
+          clinical_record_id: string;
+          weight: number | null;
+          height: number | null;
+          blood_pressure_sys: number | null;
+          blood_pressure_dia: number | null;
+          heart_rate: number | null;
+          temperature: number | null;
+          oxygen_saturation: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          clinical_record_id: string;
+          weight?: number | null;
+          height?: number | null;
+          blood_pressure_sys?: number | null;
+          blood_pressure_dia?: number | null;
+          heart_rate?: number | null;
+          temperature?: number | null;
+          oxygen_saturation?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          clinical_record_id?: string;
+          weight?: number | null;
+          height?: number | null;
+          blood_pressure_sys?: number | null;
+          blood_pressure_dia?: number | null;
+          heart_rate?: number | null;
+          temperature?: number | null;
+          oxygen_saturation?: number | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "vital_signs_clinical_record_id_fkey";
+            columns: ["clinical_record_id"];
+            isOneToOne: false;
+            referencedRelation: "clinical_records";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

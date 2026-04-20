@@ -12,6 +12,11 @@ import { OfficesList } from "@/components/doctor/offices-list";
 import { SchedulesManager } from "@/components/doctor/schedules-manager";
 import { PrescriptionTab } from "@/components/doctor/prescription-tab";
 import { DoctorProfileForm } from "@/components/doctor/doctor-profile-form";
+import {
+  ClinicalRecordsTab,
+  type ClinicalVisit,
+  type PatientSummary,
+} from "@/components/doctor/clinical-records-tab";
 
 function getTodayBoundsIso() {
   const now = new Date();
@@ -409,6 +414,101 @@ export default async function DoctorPage() {
   }
 
   // ================================================================
+  // TAB 7: Historia Clínica
+  // ================================================================
+  let chPatients: PatientSummary[] = [];
+  const chHistoryByPatientId: Record<string, ClinicalVisit[]> = {};
+
+  if (doctorId) {
+    const { data: records } = await adminDb
+      .from("clinical_records")
+      .select(
+        "id, patient_id, created_at, chief_complaint, anamnesis, physical_exam, diagnosis, cie10_code, treatment, notes, next_visit_date",
+      )
+      .eq("doctor_id", doctorId)
+      .order("created_at", { ascending: false });
+
+    const recordList = records ?? [];
+    const recordIds = recordList.map((r) => r.id);
+
+    // Resolve vitals
+    const vitalsByRecordId = new Map<
+      string,
+      {
+        id: string;
+        weight: number | null;
+        height: number | null;
+        blood_pressure_sys: number | null;
+        blood_pressure_dia: number | null;
+        heart_rate: number | null;
+        temperature: number | null;
+        oxygen_saturation: number | null;
+      }
+    >();
+    if (recordIds.length > 0) {
+      const { data: vitals } = await adminDb
+        .from("vital_signs")
+        .select(
+          "id, clinical_record_id, weight, height, blood_pressure_sys, blood_pressure_dia, heart_rate, temperature, oxygen_saturation",
+        )
+        .in("clinical_record_id", recordIds);
+      for (const v of vitals ?? []) {
+        vitalsByRecordId.set(v.clinical_record_id, {
+          id: v.id,
+          weight: v.weight,
+          height: v.height,
+          blood_pressure_sys: v.blood_pressure_sys,
+          blood_pressure_dia: v.blood_pressure_dia,
+          heart_rate: v.heart_rate,
+          temperature: v.temperature,
+          oxygen_saturation: v.oxygen_saturation,
+        });
+      }
+    }
+
+    // Group visits by patient
+    const visitsByPatient = new Map<string, ClinicalVisit[]>();
+    for (const r of recordList) {
+      const arr = visitsByPatient.get(r.patient_id) ?? [];
+      arr.push({
+        id: r.id,
+        createdAt: r.created_at,
+        chiefComplaint: r.chief_complaint,
+        anamnesis: r.anamnesis,
+        physicalExam: r.physical_exam,
+        diagnosis: r.diagnosis,
+        cie10Code: r.cie10_code,
+        treatment: r.treatment,
+        notes: r.notes,
+        nextVisitDate: r.next_visit_date,
+        vitals: vitalsByRecordId.get(r.id) ?? null,
+      });
+      visitsByPatient.set(r.patient_id, arr);
+    }
+
+    for (const [pid, visits] of visitsByPatient.entries()) {
+      chHistoryByPatientId[pid] = visits;
+    }
+
+    // Build patient summary list (every patient the doctor has — not only those with visits)
+    chPatients = patientItems
+      .map<PatientSummary>((p) => {
+        const visits = visitsByPatient.get(p.id) ?? [];
+        return {
+          id: p.id,
+          fullName: p.fullName,
+          lastVisitAt: visits[0]?.createdAt ?? null,
+          visitCount: visits.length,
+        };
+      })
+      .sort((a, b) => {
+        const ta = a.lastVisitAt ? new Date(a.lastVisitAt).getTime() : 0;
+        const tb = b.lastVisitAt ? new Date(b.lastVisitAt).getTime() : 0;
+        return tb - ta;
+      });
+  }
+
+  // ================================================================
   // Build tabs
   // ================================================================
   const tabs = [
@@ -446,6 +546,16 @@ export default async function DoctorPage() {
         <PrescriptionTab
           patients={rxPatients}
           appointments={rxAppointments}
+        />
+      ),
+    },
+    {
+      id: "historia",
+      label: "Historia Clínica",
+      content: (
+        <ClinicalRecordsTab
+          patients={chPatients}
+          historyByPatientId={chHistoryByPatientId}
         />
       ),
     },
